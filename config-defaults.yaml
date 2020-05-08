@@ -1,6 +1,6 @@
 read_docs:
   desc: how many docs to load, at most
-  value: 9018
+  value: 200
 window_len:
   desc: size of token sequences to train on (and network size!)
   value: 30

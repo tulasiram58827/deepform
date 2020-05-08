@@ -1,6 +1,6 @@
-
 pdfs
 data
+logs
 *.csv
 .DS_Store
 .ipynb_checkpoints

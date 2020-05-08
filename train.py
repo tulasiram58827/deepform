@@ -4,13 +4,15 @@
 #
 # jstray 2019-6-12
 
-import keras as K
-from keras.engine.input_layer import Input
-from keras.models import Model
-from keras.layers import Dense, Flatten, Dropout, Lambda, concatenate
-from keras.layers.embeddings import Embedding
-from keras.backend import squeeze
 import tensorflow as tf
+import keras as K
+from tensorflow.keras import Input
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Flatten, Dropout, Lambda, concatenate
+from tensorflow.keras.layers import Embedding
+from tensorflow.keras.backend import squeeze
+from tensorflow.keras.callbacks import TensorBoard
+
 import numpy as np
 import random
 import os
@@ -19,7 +21,7 @@ import math
 from source import input_docs
 import util
 from decimal import Decimal
-
+import datetime
 import wandb
 from wandb.keras import WandbCallback
 from source import load_training_data
@@ -224,6 +226,9 @@ if __name__ == "__main__":
     print('Configuration:')
     print(config)
 
+    log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=5)
+
     slugs, token_text, features, labels = load_training_data(config)
 
     # DF: commenting out because these are just diagnostic and rely on in-mem data
@@ -279,5 +284,6 @@ if __name__ == "__main__":
                             features_val,
                             labels_val,
                             config.doc_acc_sample_size,
-                            'doc_val_acc')
+                            'doc_val_acc'),
+            tensorboard_callback
         ])
