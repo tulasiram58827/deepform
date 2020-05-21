@@ -54,6 +54,8 @@ dropout_1 = 0.2
 dropout_2 = 0.6
 optimizer = "SGD"
 learning_rate = 0.002
+distractors = 5
+
 
 # utils
 #--------------------------------
@@ -150,7 +152,7 @@ def pair_with_distractors(cfg, x, y, label_ints, id_to_label, D=1):
     real_label_id = label_ints[clean_label]
     new_y.append(1)
     # append D incorrrect comms
-    false_labels = np.random.choice(cfg.num_classes, D, replace=False)
+    false_labels = np.random.choice(cfg.num_classes, cfg.distractors, replace=False)
     for f_l in false_labels:
       # make sure that we don't shoot ourselves in the foot by appending 
       # the real comm name with a false label
@@ -183,7 +185,7 @@ def vanilla_1dcnn(cfg):
   #                    input_length=(3000, 11)))
   #  model.add(Dropout(cfg.drop_1))
   
-  # we add a Convolution1D, which will learn filters
+  # we add a Convolution0D, which will learn filters
   # word group filters of size filter_length:
   model.add(Conv1D(cfg.filters,
                  cfg.kernel_size,
@@ -239,14 +241,15 @@ def train_cnn(args):
     "dropout_2" : args.dropout_2,
     "learning_rate" : args.learning_rate,
     "optimizer" : args.optimizer,
+    "distractors" : args.distractors
   }
    
   # if a special model name is not set from the command line, 
   # compose model name from relevant hyperparameters
   run_name = args.model_name
   if not run_name:
-    run_name = "dp comm " + str(config["comm_input_len"]) + " filt " + str(config["filters"]) + \
-               " hdims " + str(config["hidden_dims"]) + " d1 " + str(config["dropout_1"]) + " lr" + str(config["learning_rate"])
+    run_name = "ip c" + str(config["comm_input_len"]) + " f " + str(config["filters"]) + " ds " + str(config["distractors"]) + \
+               " hd " + str(config["hidden_dims"]) + " d1 " + str(config["dropout_1"]) + " lr" + str(config["learning_rate"])
 
   print("this run is called: ", run_name)
   wandb.init(project=WB_PROJECT_NAME, name=run_name, entity=WB_ENTITY)
@@ -277,7 +280,7 @@ def train_cnn(args):
   # =======================Convert string to index================
   # Tokenizer
   tk = Tokenizer(num_words=None, char_level=True, oov_token='UNK')
-  tk.fit_on_texts(x_train)
+  tk.fit_on_texts(train_data)
   # If we already have a character list, then replace the tk.word_index
   # If not, just skip below part
 
@@ -325,7 +328,7 @@ def train_cnn(args):
           batch_size=cfg.batch_size,
           epochs=cfg.epochs,
           validation_data=(test_data_block, test_labels),
-          callbacks=[WandbCallback()])
+          callbacks=[WandbCallback(save_model=False)])
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -403,8 +406,13 @@ if __name__ == "__main__":
   parser.add_argument(
     "--optimizer", 
     type=str,
-    default="SGD",
+    default=optimizer,
     help="optimizer")
+  parser.add_argument(
+    "--distractors", 
+    type=int,
+    default=distractors,
+    help="number of distractors")
   parser.add_argument(
     "-q",
     "--dry_run",

@@ -1,24 +1,28 @@
-name: deep pixel
-description: explore around deep pixel model
-program: label_pair.py
+name: inscrutable distraction
+description: broader range of hyperparams
+program: comm_name_match_train.py
 method: bayes
 metric:
-  name: val_loss
-  goal: minimize
+  name: val_acc
+  goal: maximize
 parameters:
+  distractors:
+    values: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20]
+  batch_size:
+    values: [16, 32, 64, 128]
   comm_input_len:
-    values: [5, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    values: [10, 11, 15, 20, 25, 30, 35, 40]
   filters:
-    values: [50, 100, 200, 250, 300, 400, 500]
+    values: [200, 250, 300, 400, 500, 600, 700]
   kernel_size:
-    values: [2, 3, 4, 5, 6, 7, 9, 11]
+    values: [2, 3, 4, 5, 6, 7, 8, 9, 11]
   hidden_dims:
-    values: [100, 200, 300, 500, 600]
+    values: [100, 200, 300, 500, 600, 700, 800]
   dropout_1:
-    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    values: [0.1, 0.2, 0.3, 0.4, 0.5]
   dropout_2:
-    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    values: [0.1, 0.2, 0.3, 0.4, 0.5]
   learning_rate:
-    values: [0.0005, 0.001, 0.002, 0.003, 0.0001]
+    values: [0.0005, 0.001, 0.002, 0.003, 0.0001, 0.0002, 0.00001, 0.00005, 0.00075, 0.004]
   optimizer:
-    values: ["Adam", "SGD"] 
+    values: ["Adam", "SGD", "RMSprop"] 
