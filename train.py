@@ -39,9 +39,10 @@ def one_window_unbalanced(features, labels, window_len):
     doc_idx = random.randint(0, len(features) - 1)
     doc_len = len(features[doc_idx])
     tok_idx = random.randint(0, doc_len - window_len)
+    label = labels[doc_idx][tok_idx + window_len // 2]
     return (
         features[doc_idx][tok_idx : tok_idx + window_len],
-        labels[doc_idx][tok_idx : tok_idx + window_len],
+        [label, 1 - label],
     )
 
 
@@ -49,7 +50,7 @@ def one_window_unbalanced(features, labels, window_len):
 def one_window(features, labels, window_len, positive_fraction):
     f, label_set = one_window_unbalanced(features, labels, window_len)
     if random.random() > positive_fraction:  # mostly positive examples
-        while not (1 in label_set):
+        while not label_set[0]:
             f, label_set = one_window_unbalanced(features, labels, window_len)
     return f, label_set
 
@@ -72,6 +73,8 @@ def windowed_generator(features, labels, config):
 # ---- Custom loss function is basically MSE but high penalty for missing a 1 label ---
 def missed_token_loss(one_penalty):
     def _missed_token_loss(y_true, y_pred):
+        # Zero out the null category so that we only penalize on missing an actual label.
+        y_true[:, 1], y_pred[:, 1] = 0, 0
         expected_zero = tf.cast(tf.math.equal(y_true, 0), tf.float32)
         s = y_pred * expected_zero
         zero_loss = K.backend.mean(K.backend.square(s))
@@ -109,7 +112,7 @@ def create_model(config):
         activation="sigmoid",
     )(d2)
     d4 = Dropout(config.dropout)(d3)
-    d5 = Dense(config.window_len, activation="elu")(d4)
+    d5 = Dense(2, activation="elu")(d4)
 
     model = Model(inputs=[indata], outputs=[d5])
     model.compile(
@@ -132,13 +135,7 @@ def predict_scores(model, features, window_len):
     windowed_features = np.array(
         [features[i : i + window_len] for i in range(num_windows)]
     )
-    window_scores = model.predict(windowed_features)
-
-    scores = np.zeros(doc_len)
-    for i in range(num_windows):
-        # would max work better than sum?
-        scores[i : i + window_len] += window_scores[i]
-    return scores
+    return model.predict(windowed_features)[:, 0]
 
 
 # returns text, score of best answer, plus all scores
@@ -155,9 +152,14 @@ def correct_answer(features, labels, tokens):
     answer_text = tokens[answer_idx]["token"]
     return answer_text
 
+
 # Match e.g. "$14,123.02" to "14123.02"
 def answer_match(predicted, actual):
-    return is_dollar_amount(predicted) and is_dollar_amount(actual) and (normalize_dollars(predicted) == normalize_dollars(actual))
+    return (
+        is_dollar_amount(predicted)
+        and is_dollar_amount(actual)
+        and (normalize_dollars(predicted) == normalize_dollars(actual))
+    )
 
 
 # -- Render visualization of output on PDF pages --
@@ -227,7 +229,7 @@ def log_pdf(slug, tokens, labels, score, scores, predict_text, answer_text):
         caption = "INCORRECT " + caption
     wandb.log({caption: page_images})
 
-    
+
 # Calculate accuracy of answer extraction over num_to_test docs, print
 # diagnostics while we do so
 def compute_accuracy(

@@ -1,6 +1,6 @@
 read_docs:
   desc: how many docs to load from file at most
-  value: 9000
+  value: 100
 
 len_train:
   dec: training data length (train+val) subsampled from read_docs
@@ -39,7 +39,7 @@ vocab_embed_size:
   value: 64
 
 target_thresh:
-  desc: throw away token matches to PP crowdsourced data that aren't at least this good 
+  desc: throw away token matches to PP crowdsourced data that aren't at least this good
   value: 0.8
 
 # network size
@@ -48,7 +48,7 @@ layer_1_size_factor:
   value: 4
 layer_2_size_factor:
   desc: layer 2 size = this factor * window_len
-  value: 2  
+  value: 2
 dropout:
   value: 0.2
 
@@ -59,7 +59,7 @@ steps_per_epoch:
   value: 20
 batch_size:
   desc: batch size in windows (not docs)
-  value: 10000  
+  value: 10000
 positive_fraction:
   desc: target match scores larger than this will becomes positive labels
   value: 0.5
@@ -70,7 +70,6 @@ penalize_missed:
 
 learning_rate:
   value: 0.001
-
 
 # These do not affect the training but control various setup and reportieng
 render_results_size:
@@ -83,8 +82,7 @@ doc_acc_sample_size:
   desc: sample epoch+this documents to compute doc_val_acc (uses all docs on last epoch)
   value: 10
 
-
-# the rest of these are not hyperparamters, but config settings 
+# the rest of these are not hyperparamters, but config settings
 # meaning it may break things if you change them
 token_dims:
   desc: number of features per token, including token hash
