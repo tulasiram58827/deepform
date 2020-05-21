@@ -58,7 +58,7 @@ def one_window(features, labels, window_len, positive_fraction):
 def windowed_generator(features, labels, config):
     # Create empty arrays to contain batch of features and labels#
     batch_features = np.zeros((config.batch_size, config.window_len, config.token_dims))
-    batch_labels = np.zeros((config.batch_size, config.window_len))
+    batch_labels = np.zeros((config.batch_size, 2))
 
     while True:
         for i in range(config.batch_size):
@@ -74,7 +74,8 @@ def windowed_generator(features, labels, config):
 def missed_token_loss(one_penalty):
     def _missed_token_loss(y_true, y_pred):
         # Zero out the null category so that we only penalize on missing an actual label.
-        y_true[:, 1], y_pred[:, 1] = 0, 0
+        y_true = y_true[:, 1]
+        y_pred = y_pred[:, 1]
         expected_zero = tf.cast(tf.math.equal(y_true, 0), tf.float32)
         s = y_pred * expected_zero
         zero_loss = K.backend.mean(K.backend.square(s))
