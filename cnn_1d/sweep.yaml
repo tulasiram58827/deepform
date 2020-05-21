@@ -1,0 +1,24 @@
+name: deep pixel
+description: explore around deep pixel model
+program: label_pair.py
+method: bayes
+metric:
+  name: val_loss
+  goal: minimize
+parameters:
+  comm_input_len:
+    values: [5, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+  filters:
+    values: [50, 100, 200, 250, 300, 400, 500]
+  kernel_size:
+    values: [2, 3, 4, 5, 6, 7, 9, 11]
+  hidden_dims:
+    values: [100, 200, 300, 500, 600]
+  dropout_1:
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+  dropout_2:
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+  learning_rate:
+    values: [0.0005, 0.001, 0.002, 0.003, 0.0001]
+  optimizer:
+    values: ["Adam", "SGD"] 
