@@ -74,8 +74,8 @@ def windowed_generator(features, labels, config):
 def missed_token_loss(one_penalty):
     def _missed_token_loss(y_true, y_pred):
         # Zero out the null category so that we only penalize on missing an actual label.
-        y_true = y_true[:, 1]
-        y_pred = y_pred[:, 1]
+        y_true = y_true[:, 0]
+        y_pred = y_pred[:, 0]
         expected_zero = tf.cast(tf.math.equal(y_true, 0), tf.float32)
         s = y_pred * expected_zero
         zero_loss = K.backend.mean(K.backend.square(s))
