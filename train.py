@@ -21,11 +21,14 @@ from wandb.keras import WandbCallback
 from source import load_training_data
 from util import docrow_to_bbox, is_dollar_amount, normalize_dollars
 
-run = wandb.init(project="extract_total", entity="deepform", name="hypersweep")
+run = wandb.init(project="extract_total", entity="deepform", name="ignored")
 config = run.config
 
+if not config.window_len%2:
+    config.window_len += 1  # ensure odd 
+
 c_ = config
-run.name = f"len:{c_.len_train} win:{c_.window_len} str:{c_.use_string} page:{c_.use_page} geom:{c_.use_geom} amt:{c_.use_amount} voc:{c_.vocab_size} emb:{c_.vocab_embed_size} steps:{c_.steps_per_epoch}"
+run.name = f"1tok full"
 run.save()
 
 
@@ -113,12 +116,12 @@ def create_model(config):
         activation="sigmoid",
     )(d2)
     d4 = Dropout(config.dropout)(d3)
-    d5 = Dense(2, activation="elu")(d4)
+    d5 = Dense(2, activation="softmax")(d4)
 
     model = Model(inputs=[indata], outputs=[d5])
     model.compile(
         optimizer=K.optimizers.Adam(learning_rate=config.learning_rate),
-        loss=missed_token_loss(config.penalize_missed),
+        loss='categorical_crossentropy',
         metrics=["acc"],
     )
 
@@ -131,12 +134,15 @@ def create_model(config):
 # Returns vector of token scores
 def predict_scores(model, features, window_len):
     doc_len = len(features)
-    num_windows = doc_len - window_len + 1
+    num_windows = doc_len - window_len + 1 # how many non-padding tokens
 
     windowed_features = np.array(
         [features[i : i + window_len] for i in range(num_windows)]
     )
-    return model.predict(windowed_features)[:, 0]
+
+    scores = model.predict(windowed_features)[:, 0] # first column=positive output    
+    padout = np.zeros(window_len//2)
+    return np.hstack([padout, scores, padout])
 
 
 # returns text, score of best answer, plus all scores

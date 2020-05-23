@@ -1,6 +1,6 @@
 read_docs:
   desc: how many docs to load from file at most
-  value: 100
+  value: 9000
 
 len_train:
   dec: training data length (train+val) subsampled from read_docs
@@ -11,8 +11,8 @@ val_split:
 
 # sweeps suggest these are reasonable hyperparameter defaults
 window_len:
-  desc: size of token sequences to train on (and network size!)
-  value: 30
+  desc: size of token sequences to train on, must be odd
+  value: 31
 
 # feature generation
 pad_windows:
@@ -36,7 +36,7 @@ vocab_size:
   value: 1000
 vocab_embed_size:
   desc: number of outputs in token hash embedding
-  value: 64
+  value: 32
 
 target_thresh:
   desc: throw away token matches to PP crowdsourced data that aren't at least this good
@@ -54,7 +54,7 @@ dropout:
 
 # training config
 epochs:
-  value: 100
+  value: 50
 steps_per_epoch:
   value: 20
 batch_size:

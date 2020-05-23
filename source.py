@@ -87,7 +87,7 @@ def load_training_data_nocache(config):
 
         # Optionally pad document with a window of blanks at start and end, to avoid edge effects
         if config.pad_windows:
-            n = config.window_len - 1
+            n = config.window_len // 2
 
             token_padding = [blank_token for i in range(n)]
             token_row = token_padding + token_row + token_padding
