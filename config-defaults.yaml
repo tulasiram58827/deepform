@@ -7,7 +7,7 @@ val_split:
 
 # sweeps suggest these are reasonable hyperparameter defaults
 window_len:
-  desc: size of token sequences to train on (and network size!)
+  desc: size of token sequences to train on, must be odd
   value: 25
 
 # feature generation

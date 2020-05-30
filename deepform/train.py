@@ -47,7 +47,7 @@ def one_window(dataset, config):
 def windowed_generator(dataset, config):
     # Create empty arrays to contain batch of features and labels#
     batch_features = np.zeros((config.batch_size, config.window_len, config.token_dims))
-    batch_labels = np.zeros((config.batch_size, config.window_len))
+    batch_labels = np.zeros((config.batch_size, 2))
 
     while True:
         for i in range(config.batch_size):
@@ -60,6 +60,9 @@ def windowed_generator(dataset, config):
 # ---- Custom loss function is basically MSE but high penalty for missing a 1 label ---
 def missed_token_loss(one_penalty):
     def _missed_token_loss(y_true, y_pred):
+        # Zero out the null category so that we only penalize missing an actual label.
+        y_true = y_true[:, 0]
+        y_pred = y_pred[:, 0]
         expected_zero = tf.cast(tf.math.equal(y_true, 0), tf.float32)
         s = y_pred * expected_zero
         zero_loss = K.backend.mean(K.backend.square(s))
@@ -97,12 +100,12 @@ def create_model(config):
         activation="sigmoid",
     )(d2)
     d4 = Dropout(config.dropout)(d3)
-    d5 = Dense(config.window_len, activation="elu")(d4)
+    d5 = Dense(2, activation="softmax")(d4)
 
     model = Model(inputs=[indata], outputs=[d5])
     model.compile(
         optimizer=K.optimizers.Adam(learning_rate=config.learning_rate),
-        loss=missed_token_loss(config.penalize_missed),
+        loss="categorical_crossentropy",
         metrics=["acc"],
     )
 
@@ -115,13 +118,10 @@ def create_model(config):
 # Returns vector of token scores
 def predict_scores(model, document):
     windowed_features = np.stack([window.features for window in document])
-    window_scores = model.predict(windowed_features)
+    window_scores = model.predict(windowed_features)[:, 0]
 
-    scores = np.zeros(len(document) + document.window_len)
-    for i in range(len(document)):
-        # would max work better than sum?
-        scores[i : i + document.window_len] += window_scores[i]
-    return scores
+    padout = np.zeros(document.window_len // 2)
+    return np.hstack([padout, window_scores, padout])
 
 
 # returns text, score of best answer, plus all scores
@@ -158,7 +158,7 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
     except Exception:
         # If the file's not there, that's fine -- we use available PDFs to
         # define what to see
-        print("Cannot open pdf " + fname)
+        print(f"Cannot open pdf {fname}")
         return
 
     print(f"Rendering output for {fname}")
