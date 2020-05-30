@@ -28,7 +28,7 @@ class Window:
     labels: np.ndarray
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.tokens)
 
 
 @dataclass(frozen=True)
@@ -52,8 +52,10 @@ class Document:
 
     def __getitem__(self, n):
         """Return the `n`th window in the document."""
-        k = n + self.window_len
-        return Window(self.tokens[n:k], self.features[n:k], self.labels[n:k])
+        # n is the start of the window.
+        m = n + self.window_len // 2  # m is the middle, actual token of interest.
+        k = n + self.window_len  # k is the end of the window.
+        return Window(self.tokens[n:k], self.features[n:k], self.labels[m])
 
     def __len__(self):
         """Return the number of windows in the document.
@@ -80,21 +82,23 @@ class Document:
         df["match"] = df["gross_amount"]
 
         if config.pad_windows:
-            df = pad_df(df, config.window_len - 1)
+            df = pad_df(df, config.window_len // 2)
         fix_dtypes(df)
 
         # Pre-compute which windows have the desired token.
-        positive_windows = []
-        for i in range(len(df) - config.window_len):
-            if df["label"].iloc[i : i + config.window_len].any():
-                positive_windows.append(i)
+        positive_windows = df[df["label"]].index - config.window_len // 2
         assert len(positive_windows) > 0
+
+        # Expand 'label' to gross_amount / void.
+        df["label_gross"] = df["label"]
+        df["label_void"] = 1 - df["label"]
+        labels = df[["label_gross", "label_void"]].to_numpy()
 
         return Document(
             slug=slug,
             tokens=np.array(df[TOKEN_COLS].to_dict("records")),
             features=df[FEATURE_COLS].to_numpy(dtype=float),
-            labels=df["label"].to_numpy(dtype=bool),
+            labels=labels,
             positive_windows=np.array(positive_windows),
             window_len=config.window_len,
             gross_amount=actual_value(df, value_col="token", match_col="gross_amount"),

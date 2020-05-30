@@ -45,9 +45,12 @@ class DocumentStore:
         doc_index = pd.read_parquet(index_file)
         logging.debug(f"{len(doc_index)} documents in index")
 
+        window_len = config.window_len // 2
+        assert window_len * 2 + 1 == config.window_len, "window len must be odd"
+
         if not config.pad_windows:
             # Filter out documents that are too short for the curent config.
-            doc_index = doc_index[doc_index["length"] >= config.window_len]
+            doc_index = doc_index[doc_index["length"] >= window_len]
 
         # Filter out documents that don't have a sufficiently high match.
         doc_index = doc_index[doc_index["best_match"] >= config.target_thresh]
