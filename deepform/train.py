@@ -164,7 +164,7 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
     print(f"Rendering output for {fname}")
 
     # Get the correct answers: find the indices of the token(s) labelled 1
-    target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
+    target_idx = [idx for (idx, val) in enumerate(doc.labels) if val[0] == 1]
 
     # Draw the machine output: get a score for each token
     page_images = []
