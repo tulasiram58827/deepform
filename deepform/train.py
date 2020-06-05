@@ -100,9 +100,14 @@ def create_model(config):
         activation="sigmoid",
     )(d2)
     d4 = Dropout(config.dropout)(d3)
-    d5 = Dense(2, activation="softmax")(d4)
+    d5 = Dense(
+        int(config.window_len * config.token_dims * config.layer_2_size_factor * 0.5),
+        activation="sigmoid",
+    )(d4)
+    d6 = Dropout(config.dropout)(d5)
+    d7 = Dense(2, activation="softmax")(d6)
 
-    model = Model(inputs=[indata], outputs=[d5])
+    model = Model(inputs=[indata], outputs=[d7])
     model.compile(
         optimizer=K.optimizers.Adam(learning_rate=config.learning_rate),
         loss="categorical_crossentropy",
@@ -118,7 +123,7 @@ def create_model(config):
 # Returns vector of token scores
 def predict_scores(model, document):
     windowed_features = np.stack([window.features for window in document])
-    window_scores = model.predict(windowed_features)[:, 0]
+    window_scores = model.predict(windowed_features)[:, 0] # col 0 = positive
 
     padout = np.zeros(document.window_len // 2)
     return np.hstack([padout, window_scores, padout])
@@ -161,8 +166,6 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
         print(f"Cannot open pdf {fname}")
         return
 
-    print(f"Rendering output for {fname}")
-
     # Get the correct answers: find the indices of the token(s) labelled 1
     target_idx = [idx for (idx, val) in enumerate(doc.labels) if val[0] == 1]
 
@@ -179,7 +182,7 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
             current_page = 0.0
 
         # Draw guesses
-        for idx, tok in enumerate(doc.tokens):
+        for idx, tok in doc.tokens.iterrows():
             rel_score = scores[idx] / score
             if rel_score >= 0.5 and same_page(tok["page"], current_page):
                 if rel_score == 1:
