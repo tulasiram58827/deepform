@@ -1,5 +1,5 @@
-name: inscrutable distraction
-description: broader range of hyperparams
+name: deeper distract
+description: broader range of hyperparams, esp for distractors
 program: comm_name_match_train.py
 method: bayes
 metric:

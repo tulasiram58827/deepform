@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 # Trains a simple 1D CNN architecture to predict whether a given document
-# includes a given committee name as the correct payer (binary classification: returns
-# "True" if the committee name label matches and "False" otherwise)
-# Intended to be sweep-compatible.
+# includes a given committee name as the correct payer (binary classification:
+# the model literally returns a score < 0.5 if False and > 0.5 if True)
+# Intended to be sweep-compatible. Run with "-h" to see all the options
 
 import argparse
 import tensorflow as tf 
@@ -16,13 +16,18 @@ from tensorflow.keras.layers import Dense, Dropout, Activation, Input, Reshape, 
 from tensorflow.keras.layers import Conv1D, GlobalMaxPooling1D, AveragePooling1D, MaxPooling1D
 
 import numpy as np
+import os
 import pandas as pd
+import pickle
 import wandb
 from wandb.keras import WandbCallback
 
+char_dict = {}
+INV_CHARS = {}
+
 # modify to your project if you like
 # note that if you run a sweep, you will need to set these as environment variables as follows
-# in order for them to work
+# in order for them to work, or add them to the sweep.yaml file
 # export WANDB_ENTITY=
 # export WANDB_PROJECT=
 WB_PROJECT_NAME = "cnn_1d"
@@ -30,15 +35,16 @@ WB_ENTITY = "deepform"
 
 # Settings / Hyperparameters
 # can be modified here, in the command-line, or through a sweep config
-MODEL_NAME = "" 
+MODEL_NAME = ""
 DATA_PATH = ""
 
-NUM_TRAIN = 7218
-NUM_VAL = 1800
-EPOCHS = 15
+# full 2012 data contains 9018 documents
+NUM_TRAIN = 7218 # max is 7218
+NUM_VAL = 1800 # max is 1800
+EPOCHS = 5
 
 # number of distractors (non-matching committee names) to choose from
-NUM_CLASSES = 600
+NUM_CLASSES = 680 #600
 BATCH_SIZE = 64
 doc_input_len = 3000
 
@@ -54,8 +60,45 @@ dropout_1 = 0.2
 dropout_2 = 0.6
 optimizer = "SGD"
 learning_rate = 0.002
-distractors = 5
+distractors = 10
 
+# log receipt text as a string to wandb.Table
+# by default, logs the most confidence false positives as these will be the
+# most problematic
+class LogCallback(WandbCallback):
+  
+  def on_epoch_end(self, epoch, epoch_logs, false_pos=True):
+    # limit number of entries in the table
+    num_log = 20
+  
+    table = wandb.Table(columns = ["Document", "Committee Label", "Score", "Truth"]) 
+    # TODO: runs prediction on full validation data, we may not want this
+    preds = self.model.predict(self.validation_data[0])  
+    truth = self.validation_data[1] 
+
+    if false_pos:
+      # sort predictions with highest-scoring false positives on top
+      pairs = zip(preds, truth)
+      fp = [[i, p[0]] for i, p in enumerate(pairs) if p[0] > 0.5 and p[1] == 0]
+      print("false pos count: ", len(fp), " out of ", len(self.validation_data[0])) 
+      fp.sort(key=lambda x: x[1], reverse=True)
+      top_fp = fp[:num_log]
+      print("top fp: ", top_fp)
+    
+      for doc_id, score in top_fp:
+        doc = self.validation_data[0][doc_id]
+        dtext = "".join([INV_CHARS[int(row[0])] for row in doc[:200]])
+        ctext = "".join([INV_CHARS[int(i_c)] for i_c in doc[0][1:]])
+        table.add_data(dtext, ctext, score, "0")
+      wandb.log({"top false positives" : table})
+    else:
+      # regular predictions
+      for doc, pred, truth in zip(self.validation_data[0][:num_log], preds, self.validation_data[1][:num_log]):
+        dtext = "".join([INV_CHARS[int(row[0])] for row in doc[:200]])
+        ctext = "".join([INV_CHARS[int(i_c)] for i_c in doc[0][1:]])
+        table.add_data(dtext, ctext, pred[0], truth)  
+     
+      wandb.log({"predictions" : table})
 
 # utils
 #--------------------------------
@@ -135,6 +178,10 @@ def build_comm_map(cfg, x, y):
   label_ints["UNK"] = len(label_names)
   print("labels: ", label_ints)
   print("label length: ", len(label_ints))
+  
+  # sorted dictionary
+  l_sort = sorted(labels.items(), key=lambda kv: kv[1], reverse=True)
+  print("SORTED: ", l_sort[:50])
 
   id_to_label = { v : k for k, v in label_ints.items() }
   return label_ints, id_to_label
@@ -168,7 +215,6 @@ def pair_with_distractors(cfg, x, y, label_ints, id_to_label, D=1):
 #test_data_block = to_categorigcal(test_data_block)
 #y_verdict = to_categorical(y_verdict, 2)
 #test_labels = to_categorical(test_labels, 2)
-
 
 # this is a basic 1D CNN
 def vanilla_1dcnn(cfg):
@@ -214,6 +260,7 @@ def vanilla_1dcnn(cfg):
   #model.add(Dropout(0.5))
   #model.add(Activation('relu'))
 
+  # TODO: how do we adjust this cutoff if we like?
   model.add(Dense(1, activation="sigmoid"))
 
   lr_optimizer = load_optimizer(cfg.optimizer, cfg.learning_rate)
@@ -230,7 +277,7 @@ def train_cnn(args):
     "num_classes" : NUM_CLASSES,
     "epochs" : args.epochs,
     # hardcoded for now--change if logging a substantially different model type
-    "model" : "deep pixel",
+    "model" : "distractors",
     "batch_size" : args.batch_size,
     "doc_input_len" : doc_input_len,
     "comm_input_len" : args.comm_input_len,
@@ -257,7 +304,12 @@ def train_cnn(args):
   cfg.setdefaults(config)
 
   # load training data
-  x, y = BuildInputTensor(cfg)
+  #x, y = BuildInputTensor(cfg)
+  # or read from pre-saved file
+  docs_file = open("DOCS_9K", 'r')
+  comms_file = open("COMMS_9K", 'r')
+  x = docs_file.readlines()
+  y = comms_file.readlines()
   print("Number of documents: ", len(x))
   print("Number of committees: ", len(y))
 
@@ -271,7 +323,7 @@ def train_cnn(args):
   train_labels = y[:cfg.num_train]
   val_labels = y[cfg.num_train:cfg.num_train + cfg.num_val]
 
-  label_ints, id_to_label = build_comm_map(cfg, x, y )
+  label_ints, id_to_label = build_comm_map(cfg, x, y)
 
   x_doc, x_comm, y_verdict = pair_with_distractors(cfg, train_data, train_labels, label_ints, id_to_label)
   y_doc, y_comm, test_labels = pair_with_distractors(cfg, val_data, val_labels, label_ints, id_to_label)
@@ -287,10 +339,16 @@ def train_cnn(args):
   # -----------------------Skip part start--------------------------
   # construct a new vocabulary
   alphabet = " abcdefghijklmnopqrstuvwxyz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{}"
-  char_dict = {}
   for i, char in enumerate(alphabet):
     char_dict[char] = i + 1
-
+    INV_CHARS[i+1] = char
+  INV_CHARS[70] = "~"
+  INV_CHARS[0] ="@"
+  
+  # pickle both vocabs for reloading
+  pickle.dump(INV_CHARS, open("inv_chars.pkl", "wb"))
+  pickle.dump(char_dict, open("char_dict.pkl", "wb"))
+  
   # Use char_dict to replace the tk.word_index
   tk.word_index = char_dict.copy()
   # Add 'UNK' to the vocabulary
@@ -328,7 +386,10 @@ def train_cnn(args):
           batch_size=cfg.batch_size,
           epochs=cfg.epochs,
           validation_data=(test_data_block, test_labels),
-          callbacks=[WandbCallback(save_model=False)])
+          callbacks=[WandbCallback(save_model=False), LogCallback()])
+  
+  # will default to saving the model by the run name 
+  model.save(wandb.run.name)
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
