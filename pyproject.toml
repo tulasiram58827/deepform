@@ -14,6 +14,12 @@ keras = "^2.3.1"
 tensorflow = "^2.2.0"
 sqlalchemy = "^1.3.16"
 pdfplumber = "^0.5.20"
+boto3 = "^1.13.14"
+tqdm = "^4.46.0"
+joblib = "^0.15.1"
+lz4 = "^3.0.2"
+humanize = "^2.4.0"
+dask = {extras = ["dataframe"], version = "^2.17.2"}
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
@@ -23,10 +29,10 @@ matplotlib = "^3.2.1"
 autoflake = "^1.3.1"
 flake8 = "^3.8.1"
 isort = {extras = ["pyproject"], version = "^4.3.21"}
-seed-isort-config = "^2.1.1"
 pre-commit = "^2.4.0"
 pytest = "^5.4.2"
 hypothesis = "^5.14.0"
+faker = "^4.1.0"
 
 [tool.isort]
 multi_line_output = 3
@@ -34,7 +40,7 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 line_length = 88
-known_third_party = ["fuzzywuzzy", "keras", "nltk", "numpy", "pandas", "pdfplumber", "sqlalchemy", "tensorflow", "wandb"]
+known_third_party = ["boto3", "botocore", "fuzzywuzzy", "joblib", "keras", "nltk", "numpy", "pandas", "pdfplumber", "pyarrow", "sqlalchemy", "tensorflow", "tqdm", "wandb"]
 
 [tool.black]
 line-length = 88
