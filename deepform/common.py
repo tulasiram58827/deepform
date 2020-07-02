@@ -6,4 +6,7 @@ ROOT_DIR = Path(__file__).absolute().parents[1]
 DATA_DIR = ROOT_DIR / "data"
 PDF_DIR = DATA_DIR / "pdfs"
 TOKEN_DIR = DATA_DIR / "tokenized"
+LABELED_DIR = DATA_DIR / "labeled"
+TRAINING_DIR = DATA_DIR / "training"
+TRAINING_INDEX = TRAINING_DIR.parent / "doc_index.parquet"
 MODEL_DIR = DATA_DIR / "models"

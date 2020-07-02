@@ -10,7 +10,12 @@ BoundingBox = namedtuple("BoundingBox", ["x0", "y0", "x1", "y1"])
 
 
 def is_dollar_amount(s):
-    return bool(re.search(r"\d", s) and re.fullmatch(r"\$?\d*(,\d\d\d)*(\.\d\d)?", s))
+    try:
+        return bool(
+            re.search(r"\d", s) and re.fullmatch(r"\$?\d*(,\d\d\d)*(\.\d\d)?", s)
+        )
+    except TypeError:
+        return False
 
 
 def dollar_amount(s):

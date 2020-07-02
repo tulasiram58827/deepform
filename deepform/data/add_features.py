@@ -15,12 +15,11 @@ import pandas as pd
 from fuzzywuzzy import fuzz
 from tqdm import tqdm
 
+from deepform.common import TRAINING_DIR
+from deepform.common import TRAINING_INDEX as DOC_INDEX
 from deepform.data.create_vocabulary import get_token_id
 from deepform.data.csv_to_parquet import OUTPUT_PQ as INPUT_PQ
 from deepform.util import is_dollar_amount, log_dollar_amount
-
-# Defaults
-DOC_INDEX = INPUT_PQ.parent / "doc_index.parquet"
 
 
 def extend_and_write_docs(df, pq_index=DOC_INDEX, pq_path=None):
@@ -49,7 +48,7 @@ def pq_index_and_dir(pq_index, pq_path=None):
     """Get directory for sharded training data, creating if necessary."""
     pq_index = Path(pq_index).resolve()
     if pq_path is None:
-        pq_path = pq_index.parent / "tokenized_docs"
+        pq_path = TRAINING_DIR
     else:
         pq_path = Path(pq_path)
     pq_index.parent.mkdir(parents=True, exist_ok=True)
