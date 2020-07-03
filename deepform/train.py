@@ -13,7 +13,7 @@ import keras as K
 import wandb
 from wandb.keras import WandbCallback
 
-from deepform.data.add_features import DOC_INDEX
+from deepform.common import TRAINING_INDEX
 from deepform.document_store import DocumentStore
 from deepform.model import create_model, predict_answer, save_model, windowed_generator
 from deepform.pdfs import log_pdf
@@ -86,7 +86,7 @@ def main(config):
     print(config)
 
     # all_data = load_training_data(config)
-    all_documents = DocumentStore.open(index_file=DOC_INDEX, config=config)
+    all_documents = DocumentStore.open(index_file=TRAINING_INDEX, config=config)
 
     # split into validation and training sets
     validation_set, training_set = all_documents.split(percent=config.val_split)
