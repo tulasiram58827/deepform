@@ -78,6 +78,6 @@ if __name__ == "__main__":
     logging.info(f"Reading {Path(args.manifest).resolve()}")
     manifest = pd.read_csv(args.manifest)
 
-    indir, outdir = Path(args.indir), Path(args.outdir)
+    indir, outdir = Path(args.indir).resolve(), Path(args.outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
     label_docs(manifest, indir, outdir)
