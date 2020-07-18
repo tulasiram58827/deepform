@@ -15,21 +15,34 @@ from deepform.common import LABELED_DIR, TOKEN_DIR
 from deepform.util import is_dollar_amount, normalize_dollars
 
 label_cols = [
-    "gross_amount"
+    "gross_amount",
+    "flight_from",
 ]  # ["advertiser", "contract_number", "flight_from", "flight_to"]
 
 
-def gross_amount_match(lhs, rhs):
+def default_match(lhs, rhs):
+    return fuzz.ratio(str(lhs), str(rhs)) / 100
+
+
+def dollar_match(lhs, rhs):
     if not (is_dollar_amount(lhs) and is_dollar_amount(rhs)):
         return 0
     return fuzz.ratio(normalize_dollars(lhs), normalize_dollars(rhs)) / 100
 
 
-def label_doc(token_file, dest_file, gross_amount):
+def date_match(lhs, rhs):
+    return default_match(lhs, rhs)
+
+
+def label_tokens(tokens, gross_amount, flight_from):
+    tokens["gross_amount"] = tokens.token.apply(dollar_match, args=(gross_amount,))
+    tokens["flight_from"] = tokens.token.apply(date_match, args=(flight_from,))
+    return tokens
+
+
+def label_doc(token_file, dest_file, gross_amount, flight_from):
     tokens = pd.read_parquet(token_file)
-    tokens["gross_amount"] = tokens.token.apply(
-        gross_amount_match, args=(gross_amount,)
-    )
+    tokens = label_tokens(tokens, gross_amount, flight_from)
     tokens.to_parquet(dest_file, compression="lz4", index=False)
 
 
@@ -46,11 +59,16 @@ def label_docs(manifest, source_dir, dest_dir):
         if gross_amount == "":
             logging.warning(f"'gross_amount' for {slug} is empty, skipping")
             continue
+        flight_from = row.flight_from
+        if flight_from == "":
+            logging.warning(f"'flight_from' for {slug} is empty, skipping")
+            continue
         jobqueue.append(
             {
                 "token_file": token_files[slug],
                 "dest_file": dest_dir / f"{slug}.parquet",
                 "gross_amount": gross_amount,
+                "flight_from": flight_from,
             }
         )
 

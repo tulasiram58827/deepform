@@ -26,10 +26,10 @@ class Window:
 
     tokens: pd.DataFrame
     features: np.ndarray
-    labels: np.ndarray
+    label: int
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.features)
 
 
 @dataclass(frozen=True)
@@ -52,16 +52,13 @@ class Document:
         return self[index]
 
     def __getitem__(self, n):
-        """Return the `n`th window in the document."""
-        k = n + self.window_len
-        return Window(self.tokens.iloc[n:k], self.features[n:k], self.labels[n:k])
+        """Return the window in the document centered around the `n`th token."""
+        k = n + 1 + 2 * self.window_len
+        return Window(self.tokens.iloc[n:k], self.features[n:k], self.labels[n])
 
     def __len__(self):
-        """Return the number of windows in the document.
-
-        Note that unless window_len=1, this is less than the number of tokens.
-        """
-        return len(self.labels) - self.window_len + 1
+        """Return the number of windows (/tokens) in the document."""
+        return len(self.labels)
 
     def __iter__(self):
         """Iterate over all windows in the document in order."""
@@ -82,22 +79,21 @@ class Document:
         df["log_amount"] *= config.use_amount
         df["match"] = df["gross_amount"]
 
-        if config.pad_windows:
-            df = pad_df(df, config.window_len - 1)
-        fix_dtypes(df)
+        # Get labels before padding the tokens.
+        labels = df["label"].to_numpy(dtype="u1")
 
         # Pre-compute which windows have the desired token.
-        positive_windows = []
-        for i in range(len(df) - config.window_len):
-            if df["label"].iloc[i : i + config.window_len].any():
-                positive_windows.append(i)
-        assert len(positive_windows) > 0
+        positive_windows = list(df[df["label"] > 0].index)
+
+        if config.pad_windows:
+            df = pad_df(df, config.window_len)
+        fix_dtypes(df)
 
         return Document(
             slug=slug,
             tokens=df[TOKEN_COLS],
             features=df[FEATURE_COLS].to_numpy(dtype=float),
-            labels=df["label"].to_numpy(dtype=bool),
+            labels=labels,
             positive_windows=np.array(positive_windows),
             window_len=config.window_len,
             gross_amount=actual_value(df, value_col="token", match_col="gross_amount"),

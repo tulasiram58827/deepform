@@ -8,6 +8,7 @@ small samples, with an index over all the documents.
 import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from enum import Enum
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,12 @@ from tqdm import tqdm
 from deepform.common import LABELED_DIR, TRAINING_DIR, TRAINING_INDEX
 from deepform.data.create_vocabulary import get_token_id
 from deepform.util import is_dollar_amount, log_dollar_amount
+
+
+class TokenType(Enum):
+    NONE = 0
+    GROSS_AMOUNT = 1
+    FLIGHT_FROM = 2
 
 
 def extend_and_write_docs(source_dir, pq_index, out_path):
@@ -64,8 +71,12 @@ def process_document_tokens(token_file, base_path):
     doc = add_base_features(doc)
 
     # Handle the features that need the whole document.
-    max_score = doc["gross_amount"].max()
-    doc["label"] = np.isclose(doc["gross_amount"], max_score)
+    doc["label"] = np.zeros(len(doc))
+    for feature in ["gross_amount", "flight_from"]:
+        token_value = TokenType[feature.upper()].value
+        max_score = doc[feature].max()
+        matches = token_value * np.isclose(doc[feature], max_score)
+        doc["label"] = np.maximum(doc["label"], matches)
 
     # Write to its final location.
     file_path = base_path / f"{slug}.parquet"

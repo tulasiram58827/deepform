@@ -5,11 +5,12 @@ import keras as K
 import numpy as np
 import tensorflow as tf
 from keras.engine.input_layer import Input
-from keras.layers import Dense, Dropout, Flatten, Lambda, concatenate
+from keras.layers import Dense, Dot, Dropout, Flatten, Lambda, concatenate
 from keras.layers.embeddings import Embedding
 from keras.models import Model
 
 from deepform.common import MODEL_DIR
+from deepform.data.add_features import TokenType
 from deepform.document import NUM_FEATURES
 from deepform.util import git_short_hash
 
@@ -26,15 +27,22 @@ def one_window(dataset, config):
 
 
 def windowed_generator(dataset, config):
-    # Create empty arrays to contain batch of features and labels#
-    batch_features = np.zeros((config.batch_size, config.window_len, NUM_FEATURES))
-    batch_labels = np.zeros((config.batch_size, config.window_len))
+    # Create empty arrays to contain batch of features and labels
+    # Actual window length is 1 for the active token plus window_len padding on
+    # each side. We have NUM_FEATURES for each of these tokens, plus 1 for the
+    # type of the active token.
+    feature_count = (2 * config.window_len + 1) * NUM_FEATURES + 1
+    batch_features = np.zeros((config.batch_size, feature_count))
+    batch_labels = np.zeros((config.batch_size))
 
     while True:
-        for i in range(config.batch_size):
+        for i in range(config.batch_size // len(TokenType)):
             window = one_window(dataset, config)
-            batch_features[i, :, :] = window.features
-            batch_labels[i, :] = window.labels
+            # F means "Fortran", which just means column-order.
+            features = window.features.flatten("F")
+            for j, token_type in enumerate(TokenType):
+                batch_features[i + j, :] = np.append(features, [token_type.value])
+                batch_labels[i + j] = window.label == token_type.value
         yield batch_features, batch_labels
 
 
@@ -54,30 +62,29 @@ def missed_token_loss(one_penalty):
 
 # --- Specify network ---
 def create_model(config):
-    indata = Input((config.window_len, NUM_FEATURES))
 
-    # split into the hash and the rest of the token features, embed hash as
-    # one-hot, then merge
-    def create_tok_hash(x):
-        from keras.backend import squeeze, slice
+    window_size = 2 * config.window_len + 1
+    # Features other than the token id.
+    feature_count = window_size * (NUM_FEATURES - 1)
 
-        return squeeze(slice(x, (0, 0, 0), (-1, -1, 1)), axis=2)
+    indata = Input((window_size * NUM_FEATURES + 1,))
 
-    def create_tok_features(x):
-        from keras.backend import slice
+    def split_input(x):
+        from tensorflow import split
 
-        return slice(x, (0, 0, 1), (-1, -1, -1))
+        return split(x, [window_size, feature_count, 1], axis=1)
 
-    tok_hash = Lambda(create_tok_hash)(indata)
-    tok_features = Lambda(create_tok_features)(indata)
-    embed = Embedding(config.vocab_size, config.vocab_embed_size)(tok_hash)
-    merged = concatenate([embed, tok_features], axis=2)
+    tok_str_ids, tok_features, tok_type = Lambda(split_input)(indata)
+    id_embed = Flatten()(
+        Embedding(config.vocab_size, config.vocab_embed_size)(tok_str_ids)
+    )
+    tok_embed = Flatten()(Embedding(len(TokenType), config.type_embed_size)(tok_type))
+    merged = concatenate([id_embed, tok_features])
 
-    f = Flatten()(merged)
     d1 = Dense(
         int(config.window_len * NUM_FEATURES * config.layer_1_size_factor),
         activation="sigmoid",
-    )(f)
+    )(merged)
     d2 = Dropout(config.dropout)(d1)
     d3 = Dense(
         int(config.window_len * NUM_FEATURES * config.layer_2_size_factor),
@@ -94,14 +101,16 @@ def create_model(config):
     else:
         last_layer = d4
 
-    outdata = Dense(config.window_len, activation="elu")(last_layer)
-    model = Model(inputs=[indata], outputs=[outdata])
+    candidate_enc = Dense(config.type_embed_size, activation="elu")(last_layer)
+    score = Dot(axes=1)([tok_embed, candidate_enc])
+    model = Model(inputs=[indata], outputs=[score])
 
-    _missed_token_loss = missed_token_loss(config.penalize_missed)
+    # _missed_token_loss = missed_token_loss(config.penalize_missed)
 
     model.compile(
         optimizer=K.optimizers.Adam(learning_rate=config.learning_rate),
-        loss=_missed_token_loss,
+        # loss=_missed_token_loss,
+        loss=K.losses.binary_crossentropy,
         metrics=["acc"],
     )
 

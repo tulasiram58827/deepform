@@ -36,6 +36,9 @@ vocab_size:
 vocab_embed_size:
   desc: number of outputs in the vocab embedding
   value: 16
+type_embed_size:
+  desc: number of outputs in the type embedding
+  value: 16
 
 target_thresh:
   desc: throw away token matches to PP crowdsourced data that aren't at least this good
