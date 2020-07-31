@@ -43,6 +43,7 @@ class Document:
     positive_windows: np.ndarray
     window_len: int
     gross_amount: str
+    flight_from: str
 
     def random_window(self, require_positive=False):
         if require_positive:
@@ -97,6 +98,7 @@ class Document:
             positive_windows=np.array(positive_windows),
             window_len=config.window_len,
             gross_amount=actual_value(df, value_col="token", match_col="gross_amount"),
+            flight_from=actual_value(df, value_col="token", match_col="flight_from"),
         )
 
 

@@ -14,6 +14,7 @@ import wandb
 from wandb.keras import WandbCallback
 
 from deepform.common import TRAINING_INDEX
+from deepform.data.add_features import TokenType
 from deepform.document_store import DocumentStore
 from deepform.model import create_model, predict_answer, save_model, windowed_generator
 from deepform.pdfs import log_pdf
@@ -29,22 +30,33 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results):
     acc = 0
     for doc in dataset.sample(n_docs):
         slug = doc.slug
-        answer_text = doc.gross_amount
 
-        predict_text, predict_score, token_scores = predict_answer(model, doc)
+        for token_type in TokenType:
+            predict_text, predict_score, token_scores = predict_answer(
+                model, doc, token_type
+            )
 
-        match = dollar_match(predict_text, answer_text)
+            if token_type is TokenType.GROSS_AMOUNT:
+                answer_text = doc.gross_amount
+                match = dollar_match(predict_text, answer_text)
+            elif token_type is TokenType.FLIGHT_FROM:
+                answer_text = doc.flight_from
+                # TODO: use best-effort fuzzy matching for dates.
+                match = predict_text == answer_text
+            else:
+                continue
 
-        acc += match
-        prefix = f"Correct: {slug}" if match else f"**Incorrect: {slug}"
-        guessed = f'guessed "{predict_text}" with score {predict_score:.2f}, '
-        correct = f'correct "{answer_text}"'
+            acc += match
+            prefix = "Correct: " if match else "**Incorrect: "
+            name = f" {token_type.name}/{slug} "
+            guessed = f'guessed "{predict_text}" with score {predict_score}, '
+            correct = f'correct "{answer_text}"'
 
-        if print_results:
-            print(f"{prefix}: {guessed}, {correct}")
-            if not match and n_print > 0:
-                log_pdf(doc, predict_score, token_scores, predict_text, answer_text)
-                n_print -= 1
+            if print_results:
+                print(f"{prefix} {name}: {guessed}, {correct}")
+                if not match and n_print > 0:
+                    log_pdf(doc, predict_score, token_scores, predict_text, answer_text)
+                    n_print -= 1
 
     return acc / n_docs
 

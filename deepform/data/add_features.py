@@ -72,6 +72,8 @@ def process_document_tokens(token_file, base_path):
 
     # Handle the features that need the whole document.
     doc["label"] = np.zeros(len(doc))
+    # The "label" column stores the TokenType that correctly labels this token.
+    # By default this is 0, or "NONE".
     for feature in ["gross_amount", "flight_from"]:
         token_value = TokenType[feature.upper()].value
         max_score = doc[feature].max()

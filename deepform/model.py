@@ -26,6 +26,14 @@ def one_window(dataset, config):
     return window
 
 
+def typed_windows(window):
+    """Take a Window and produce a feature vector that pairs it with each TokenType."""
+    # F means "Fortran", which just means column-order.
+    features = window.features.flatten("F")
+    for token_type in TokenType:
+        yield np.append(features, [token_type.value]), token_type
+
+
 def windowed_generator(dataset, config):
     # Create empty arrays to contain batch of features and labels
     # Actual window length is 1 for the active token plus window_len padding on
@@ -38,10 +46,9 @@ def windowed_generator(dataset, config):
     while True:
         for i in range(config.batch_size // len(TokenType)):
             window = one_window(dataset, config)
-            # F means "Fortran", which just means column-order.
-            features = window.features.flatten("F")
-            for j, token_type in enumerate(TokenType):
-                batch_features[i + j, :] = np.append(features, [token_type.value])
+            for j, features_and_token in enumerate(typed_windows(window)):
+                features, token_type = features_and_token
+                batch_features[i + j, :] = features
                 batch_labels[i + j] = window.label == token_type.value
         yield batch_features, batch_labels
 
@@ -102,7 +109,8 @@ def create_model(config):
         last_layer = d4
 
     candidate_enc = Dense(config.type_embed_size, activation="elu")(last_layer)
-    score = Dot(axes=1)([tok_embed, candidate_enc])
+    cosine_sim = Dot(axes=1, normalize=True)([tok_embed, candidate_enc])
+    score = K.layers.Activation("sigmoid")(cosine_sim)
     model = Model(inputs=[indata], outputs=[score])
 
     # _missed_token_loss = missed_token_loss(config.penalize_missed)
@@ -111,7 +119,7 @@ def create_model(config):
         optimizer=K.optimizers.Adam(learning_rate=config.learning_rate),
         # loss=_missed_token_loss,
         loss=K.losses.binary_crossentropy,
-        metrics=["acc"],
+        metrics=[tf.keras.metrics.BinaryAccuracy()],
     )
 
     return model
@@ -120,21 +128,16 @@ def create_model(config):
 # --- Predict ---
 # Our network is windowed, so we have to aggregate windows to get a final score
 # Returns vector of token scores
-def predict_scores(model, document):
-    windowed_features = np.stack([window.features for window in document])
-    window_scores = model.predict(windowed_features)
-
-    num_windows = len(document) + document.window_len - 1
-    scores = np.zeros(num_windows)
-    for i in range(len(document)):
-        # would max work better than sum?
-        scores[i : i + document.window_len] += window_scores[i]
-    return scores
+def predict_scores(model, document, token_type):
+    # Here we need to check each label on each window
+    flattened = [window.features.flatten("F") for window in document]
+    typed = [np.append(features, [token_type.value]) for features in flattened]
+    return model.predict(np.stack(typed))
 
 
 # returns text, score of best answer, plus all scores
-def predict_answer(model, document):
-    scores = predict_scores(model, document)
+def predict_answer(model, document, token_type):
+    scores = predict_scores(model, document, token_type)
     best_score_idx = np.argmax(scores)
     best_score_text = document.tokens.iloc[best_score_idx]["token"]
     return best_score_text, scores[best_score_idx], scores
