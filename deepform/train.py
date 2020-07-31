@@ -31,11 +31,12 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results):
     for doc in dataset.sample(n_docs):
         slug = doc.slug
 
-        for token_type in TokenType:
-            predict_text, predict_score, token_scores = predict_answer(
-                model, doc, token_type
-            )
+        predict_texts, predict_scores, token_scores = predict_answer(
+            model, doc, print_results
+        )
 
+        for i, token_type in enumerate(TokenType):
+            predict_text, predict_score = predict_texts[i], predict_scores[i]
             if token_type is TokenType.GROSS_AMOUNT:
                 answer_text = doc.gross_amount
                 match = dollar_match(predict_text, answer_text)
@@ -46,7 +47,7 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results):
             else:
                 continue
 
-            acc += match
+            acc += match / (len(TokenType) - 1)
             prefix = "Correct: " if match else "**Incorrect: "
             name = f" {token_type.name}/{slug} "
             guessed = f'guessed "{predict_text}" with score {predict_score}, '
