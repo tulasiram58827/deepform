@@ -36,26 +36,28 @@ def windowed_generator(dataset, config):
             window = one_window(dataset, config)
             batch_features[i, :, :] = window.features
             one_hot_vec = tf.keras.backend.one_hot(window.labels, len(TokenType))
-            batch_labels[i, :] = tf.keras.backend.flatten(one_hot_vec)
+            # if (window.labels == 1).any() and (window.labels == 2).any():
+            #     print(one_hot_vec)
+            #     print(window.labels)
+            #     print(0 / 0)
+            labels = tf.keras.backend.flatten(one_hot_vec)
+            batch_labels[i, :] = labels
         yield batch_features, batch_labels
 
 
 # ---- Custom loss function is basically MSE but high penalty for missing a 1 label ---
 def missed_token_loss(one_penalty):
     def _missed_token_loss(y_true, y_pred):
-        y_true = tf.reshape(y_true, [-1, len(TokenType)])
-        y_pred = tf.reshape(y_pred, [-1, len(TokenType)])
+        y_true = tf.transpose(tf.reshape(y_true, [-1, len(TokenType)]))
+        y_pred = tf.transpose(tf.reshape(y_pred, [-1, len(TokenType)]))
 
-        expected_zero = tf.cast(tf.math.equal(y_true[0], 0), tf.float32)
-        s = one_penalty * y_pred[0] * expected_zero
-        t = (1 - y_pred[0]) * (1 - expected_zero)
-        for i in range(0, len(TokenType)):
-            s += one_penalty * y_pred[i] * (1 - y_true[i])
-            t += (1 - y_pred[i]) * (y_true[i])
+        y_true = tf.concat([1 - y_true[0:1, :], y_true[1:, :]], axis=0)
+        y_pred = tf.concat([1 - y_pred[0:1, :], y_pred[1:, :]], axis=0)
 
-        zero_loss = K.backend.mean(K.backend.square(s))
-        one_loss = K.backend.mean(K.backend.square(t))
-        return zero_loss + one_loss
+        false_pos = y_pred * tf.cast(tf.math.equal(y_true, 0), tf.float32)
+        false_neg = (1 - y_pred) * tf.cast(tf.math.equal(y_true, 1), tf.float32)
+
+        return tf.math.reduce_mean(false_pos + one_penalty * false_neg)
 
     return _missed_token_loss  # closes over one_penalty
 
