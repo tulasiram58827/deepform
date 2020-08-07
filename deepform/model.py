@@ -51,8 +51,8 @@ def missed_token_loss(one_penalty):
         y_true = tf.transpose(tf.reshape(y_true, [-1, len(TokenType)]))
         y_pred = tf.transpose(tf.reshape(y_pred, [-1, len(TokenType)]))
 
-        y_true = tf.concat([1 - y_true[0:1, :], y_true[1:, :]], axis=0)
-        y_pred = tf.concat([1 - y_pred[0:1, :], y_pred[1:, :]], axis=0)
+        y_true = tf.concat([1 - y_true[0:1, :], y_true[1:, :]], 0)
+        y_pred = tf.concat([1 - y_pred[0:1, :], y_pred[1:, :]], 0)
 
         false_pos = y_pred * tf.cast(tf.math.equal(y_true, 0), tf.float32)
         false_neg = (1 - y_pred) * tf.cast(tf.math.equal(y_true, 1), tf.float32)
