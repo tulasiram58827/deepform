@@ -7,6 +7,11 @@ test: docker-build
 	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) \
 	pytest --verbose --color=yes tests
 
+.PHONY: clean-all
+clean-all:
+	rm -r data/cache data/labeled data/tokenized data/training
+	rm data/training.parquet data/doc_index.parquet
+
 .PHONY: docker-build
 docker-build:
 	docker build -t $(CONTAINER) .
@@ -32,7 +37,15 @@ docker-background: docker-stop docker-build
 data/training.parquet:
 	curl https://project-deepform.s3-us-west-1.amazonaws.com/training_data/training.parquet -o data/training.parquet
 
-data/doc_index.parquet: data/training.parquet
+data/tokenized:
+	docker build -t $(CONTAINER) .
+	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) python -m deepform.data.tokenize_pdfs
+
+data/labeled: data/tokenized data/fcc-data-2020-labeled-manifest.csv
+	docker build -t $(CONTAINER) .
+	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) python -m deepform.data.add_labels data/fcc-data-2020-labeled-manifest.csv
+
+data/doc_index.parquet: data/labeled
 	docker build -t $(CONTAINER) .
 	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) python -m deepform.data.add_features
 
