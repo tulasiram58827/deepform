@@ -37,7 +37,11 @@ docker-background: docker-stop docker-build
 data/training.parquet:
 	curl https://project-deepform.s3-us-west-1.amazonaws.com/training_data/training.parquet -o data/training.parquet
 
-data/tokenized:
+data/pdfs: data/fcc-data-2020-labeled-manifest.csv
+	docker build -t $(CONTAINER) .
+	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) python -c "import pandas as pd; print('\n'.join(pd.read_csv('data/fcc-data-2020-labeled-manifest.csv').URL))" | xargs wget -P data/pdfs
+
+data/tokenized: data/pdfs
 	docker build -t $(CONTAINER) .
 	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) python -m deepform.data.tokenize_pdfs
 
