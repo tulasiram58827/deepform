@@ -22,7 +22,7 @@ def test_convert_csv_to_parquet(faker, tmp_path):
     df = df.astype(CSV_COL_TYPES)
 
     # Run the conversion code.
-    extend_and_write_docs(df, idx_path)
+    extend_and_write_docs(df, idx_path, pq_path)
 
     # Check out the index.
     index = pd.read_parquet(idx_path)
