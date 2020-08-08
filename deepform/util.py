@@ -9,9 +9,13 @@ from decimal import Decimal, InvalidOperation
 BoundingBox = namedtuple("BoundingBox", ["x0", "y0", "x1", "y1"])
 
 
+def num_digits(s):
+    return sum(c.isdigit() for c in s)
+
+
 def is_dollar_amount(s):
     try:
-        return bool(re.fullmatch(r"\$?\d*(,\d\d\d)*(\.\d\d)?", s))
+        return num_digits(s) > 0 and bool(re.match(r"^\$?\d*(,\d\d\d)*(\.\d\d)?$", s))
     except TypeError:
         return False
 
