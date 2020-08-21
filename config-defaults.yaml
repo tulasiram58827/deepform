@@ -79,6 +79,19 @@ penalize_missed:
 learning_rate:
   value: 0.001
 
+sample_weighting:
+  desc: parameters for weighting samples during training by a column value
+  value:
+    column: year
+    values:
+      - value: 2012
+        weight: 0.5
+      - value: 2016
+        weight: 0.7
+      - value: 2020
+        weight: 1.0
+
+
 # These do not affect the training but control various setup and reporting
 render_results_size:
   desc: log this many PDF images on last epoch

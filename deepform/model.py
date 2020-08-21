@@ -20,15 +20,31 @@ from deepform.document import NUM_FEATURES
 from deepform.util import git_short_hash
 
 
+def sample_weights(config):
+    weight_config = config.get('sample_weights')
+    if weight_config:
+        return {weight['value']: weight['weight']
+                for weight in weight_config['values']}
+    else:
+        return None
+
+
 # control the fraction of windows that include a positive label. not efficient.
-def one_window(dataset, config):
+def one_window(dataset, config, sample_key_label=None):
     require_positive = random.random() > config.positive_fraction
-    window = dataset.random_document().random_window(require_positive)
+    document = dataset.random_document()
+    window = document.random_window(require_positive)
     if config.permute_tokens:
         shuffle = np.random.permutation(config.window_len)
         window.features = window.features[shuffle]
         window.labels = window.labels[shuffle]
-    return window
+
+    if sample_key_label:
+        sample_key = document.label_values.get(sample_key_label)
+    else:
+        sample_key = None
+
+    return window, sample_key
 
 
 def windowed_generator(dataset, config):
@@ -36,12 +52,20 @@ def windowed_generator(dataset, config):
     batch_features = np.zeros((config.batch_size, config.window_len, NUM_FEATURES))
     batch_labels = np.zeros((config.batch_size, config.window_len))
 
+    sample_weighting = sample_weights(config)
+    batch_sample_weights =
+        np.ones((config.batch_size, config.window_len)) if sample_weighting else None
+
     while True:
         for i in range(config.batch_size):
-            window = one_window(dataset, config)
+            window, sample_key = one_window(dataset, config)
             batch_features[i, :, :] = window.features
             batch_labels[i, :] = window.labels  # tf.one_hot(window.labels, 2)
-        yield batch_features, batch_labels
+            if sample_weighting:
+                sample_weight = sample_weighting.get(sample_key, 1.0)
+                batch_sample_weights[i, :] *= sample_weight
+
+        yield batch_features, batch_labels, batch_sample_weights
 
 
 # ---- Custom loss function is basically MSE but high penalty for missing a 1 label ---
