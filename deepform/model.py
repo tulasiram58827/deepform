@@ -21,10 +21,9 @@ from deepform.util import git_short_hash
 
 
 def sample_weights(config):
-    weight_config = config.get('sample_weights')
+    weight_config = config.get("sample_weights")
     if weight_config:
-        return {weight['value']: weight['weight']
-                for weight in weight_config['values']}
+        return {weight["value"]: weight["weight"] for weight in weight_config["values"]}
     else:
         return None
 
@@ -49,8 +48,9 @@ def windowed_generator(dataset, config):
     batch_labels = np.zeros((config.batch_size, config.window_len))
 
     sample_weighting = sample_weights(config)
-    batch_sample_weights = np.ones((config.batch_size, config.window_len)) \
-        if sample_weighting else None
+    batch_sample_weights = (
+        np.ones((config.batch_size, config.window_len)) if sample_weighting else None
+    )
 
     while True:
         for i in range(config.batch_size):

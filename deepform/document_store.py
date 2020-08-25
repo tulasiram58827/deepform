@@ -65,8 +65,10 @@ class DocumentStore:
         labels = doc_index[LABEL_COLS.keys()]
         years = doc_index[YEAR_COL]
         docs = np.array(
-            [slug_to_doc(slug, labels.loc[slug], year=year) for slug, year
-             in zip(doc_index.index, years)]
+            [
+                slug_to_doc(slug, labels.loc[slug], year=year)
+                for slug, year in zip(doc_index.index, years)
+            ]
         )
         docs = docs[docs != None]  # noqa: E711
 
