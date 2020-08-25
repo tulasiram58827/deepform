@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from joblib import dump, load
 
-from deepform.data.add_features import LABEL_COLS, pq_index_and_dir
+from deepform.data.add_features import LABEL_COLS, YEAR_COL, pq_index_and_dir
 from deepform.document import Document
 
 
@@ -63,8 +63,10 @@ class DocumentStore:
         # docs = concurrent.thread_map(slug_to_doc, doc_index["slug"])
 
         labels = doc_index[LABEL_COLS.keys()]
+        years = doc_index[YEAR_COL]
         docs = np.array(
-            [slug_to_doc(slug, labels.loc[slug]) for slug in doc_index.index]
+            [slug_to_doc(slug, labels.loc[slug], year=year) for slug, year
+             in zip(doc_index.index, years)]
         )
         docs = docs[docs != None]  # noqa: E711
 
@@ -77,7 +79,7 @@ def caching_doc_getter(index_file, config):
         cache_root = pq_root.parent / "cache" / cache_master_key(config)
         cache_root.mkdir(parents=True, exist_ok=True)
 
-    def slug_to_doc(slug, labels):
+    def slug_to_doc(slug, labels, year=None):
         pq_path = pq_root / f"{slug}.parquet"
         if config.use_data_cache:
             cache_path = cache_root / f"{slug}.joblib"
@@ -87,7 +89,7 @@ def caching_doc_getter(index_file, config):
             except FileNotFoundError:
                 logging.debug(f"Cache file {cache_path} not found")
         try:
-            doc = Document.from_parquet(slug, labels, pq_path, config)
+            doc = Document.from_parquet(slug, labels, pq_path, config, year=year)
         except AssertionError:
             logging.warning(f"No correct answers for {slug}, skipping")
             return None

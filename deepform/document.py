@@ -55,6 +55,7 @@ class Window:
 @dataclass(frozen=True)
 class Document:
     slug: str
+    year: int
     # tokens, features, and labels are all aligned with the same indices.
     tokens: pd.DataFrame
     features: np.ndarray
@@ -126,7 +127,7 @@ class Document:
         return "\n".join([title, predicted, body.to_string()])
 
     @staticmethod
-    def from_parquet(slug, label_values, pq_path, config):
+    def from_parquet(slug, label_values, pq_path, config, year=None):
         """Load precomputed features from a parquet file and apply a config."""
         df = pd.read_parquet(pq_path)
 
@@ -155,6 +156,7 @@ class Document:
 
         return Document(
             slug=slug,
+            year=year,
             tokens=df[TOKEN_COLS],
             features=df[FEATURE_COLS].to_numpy(dtype=float),
             labels=labels.to_numpy(dtype=int),

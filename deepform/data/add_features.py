@@ -36,6 +36,8 @@ class TokenType(Enum):
     GROSS_AMOUNT = auto()
 
 
+YEAR_COL = "year"
+
 LABEL_COLS = {
     # Each label column, and the match function that it uses.
     "contract_num": default_similarity,
@@ -54,6 +56,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
     jobqueue = []
     for row in manifest.itertuples():
         slug = row.file_id
+        year = row.year if hasattr(row, "year") else None
         if slug not in token_files:
             logging.error(f"No token file for {slug}")
             continue
@@ -67,6 +70,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
                 "token_file": token_files[slug],
                 "dest_file": out_path / f"{slug}.parquet",
                 "labels": labels,
+                "year": year,
             }
         )
 
@@ -97,7 +101,7 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, labels):
+def process_document_tokens(token_file, dest_file, labels, year=None):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
     doc = pd.read_parquet(token_file)

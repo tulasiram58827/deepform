@@ -39,11 +39,7 @@ def one_window(dataset, config, sample_key_label=None):
         window.features = window.features[shuffle]
         window.labels = window.labels[shuffle]
 
-    if sample_key_label:
-        sample_key = document.label_values.get(sample_key_label)
-    else:
-        sample_key = None
-
+    sample_key = document.year if sample_key_label else None
     return window, sample_key
 
 
@@ -53,8 +49,8 @@ def windowed_generator(dataset, config):
     batch_labels = np.zeros((config.batch_size, config.window_len))
 
     sample_weighting = sample_weights(config)
-    batch_sample_weights =
-        np.ones((config.batch_size, config.window_len)) if sample_weighting else None
+    batch_sample_weights = np.ones((config.batch_size, config.window_len)) \
+        if sample_weighting else None
 
     while True:
         for i in range(config.batch_size):
