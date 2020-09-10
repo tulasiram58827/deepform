@@ -111,7 +111,52 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
     wandb.log({f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)})
 
 
-def render_pdf(doc, score, scores, predict_text, answer_text):
+def render_tokenized_pdf(doc):
+
+    fname = get_pdf_path(doc.slug)
+    try:
+        pdf = pdfplumber.open(fname)
+    except Exception:
+        # If the file's not there, that's fine -- we use available PDFs to
+        # define what to see
+        print(f"Cannot open pdf {fname}")
+        return
+
+    # Get the correct answers: find the indices of the token(s) labelled 1
+    target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
+
+    page_images = []
+    for pagenum, page in enumerate(pdf.pages):
+        im = page.to_image(resolution=300)
+
+        # training data has 0..1 for page range (see create-training-data.py)
+        num_pages = len(pdf.pages)
+        if num_pages > 1:
+            current_page = pagenum / float(num_pages - 1)
+        else:
+            current_page = 0.0
+
+        page_match = np.isclose(doc.tokens["page"], current_page)
+
+        for token in doc.tokens[page_match].itertuples():
+            w = 1
+            s = "red"
+
+            im.draw_rect(docrow_to_bbox(token), stroke=s, stroke_width=w, fill=None)
+
+        # Draw target tokens
+        target_toks = [
+            doc.tokens.iloc[i]
+            for i in target_idx
+            if np.isclose(doc.tokens.iloc[i]["page"], current_page)
+        ]
+        rects = [docrow_to_bbox(t) for t in target_toks]
+        im.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
+        page_images.append(im.annotated)
+    return page_images
+
+
+def render_annotated_pdf(doc, score, scores, predict_text, answer_text):
 
     fname = get_pdf_path(doc.slug)
     try:
@@ -179,7 +224,7 @@ def render_pdf(doc, score, scores, predict_text, answer_text):
 
 
 def log_pdf(doc, score, scores, predict_text, answer_text):
-    caption, page_images = render_pdf(doc, score, predict_text, answer_text)
+    caption, page_images = render_annotated_pdf(doc, score, predict_text, answer_text)
     page_images = [
         wandb.Image(page_image["image"], page_image["caption"])
         for page_image in page_images
