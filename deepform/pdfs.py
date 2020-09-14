@@ -122,38 +122,20 @@ def render_tokenized_pdf(doc):
         print(f"Cannot open pdf {fname}")
         return
 
-    # Get the correct answers: find the indices of the token(s) labelled 1
-    target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
+    page_images = [
+        {"image": page.to_image(resolution=300), "rects": []} for page in pdf.pages
+    ]
 
-    page_images = []
-    for pagenum, page in enumerate(pdf.pages):
-        im = page.to_image(resolution=300)
+    for token in doc.tokens.itertuples():
+        page_num = int(token.page)
+        if page_num < len(page_images):
+            page_images[page_num]["rects"].append(docrow_to_bbox(token))
 
-        # training data has 0..1 for page range (see create-training-data.py)
-        num_pages = len(pdf.pages)
-        if num_pages > 1:
-            current_page = pagenum / float(num_pages - 1)
-        else:
-            current_page = 0.0
+    for page in page_images:
+        image, rects = page["image"], page["rects"]
+        image.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
 
-        page_match = np.isclose(doc.tokens["page"], current_page)
-
-        for token in doc.tokens[page_match].itertuples():
-            w = 1
-            s = "red"
-
-            im.draw_rect(docrow_to_bbox(token), stroke=s, stroke_width=w, fill=None)
-
-        # Draw target tokens
-        target_toks = [
-            doc.tokens.iloc[i]
-            for i in target_idx
-            if np.isclose(doc.tokens.iloc[i]["page"], current_page)
-        ]
-        rects = [docrow_to_bbox(t) for t in target_toks]
-        im.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
-        page_images.append(im.annotated)
-    return page_images
+    return [page["image"] for page in page_images]
 
 
 def render_annotated_pdf(doc, score, scores, predict_text, answer_text):
