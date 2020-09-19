@@ -7,6 +7,7 @@ import pandas as pd
 
 from deepform.data.add_features import TokenType
 from deepform.features import fix_dtypes
+from deepform.window import Window
 
 FEATURE_COLS = [
     "tok_id",
@@ -38,18 +39,6 @@ TOKEN_COLS = [
 
 # This sets which field the model is looking for.
 SINGLE_CLASS_PREDICTION = "gross_amount"
-
-
-@dataclass
-class Window:
-    """A Window just holds views to the arrays held by a Document."""
-
-    tokens: pd.DataFrame
-    features: np.ndarray
-    labels: np.ndarray
-
-    def __len__(self):
-        return len(self.labels)
 
 
 @dataclass(frozen=True)
