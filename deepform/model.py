@@ -24,12 +24,7 @@ from deepform.util import git_short_hash
 # control the fraction of windows that include a positive label. not efficient.
 def one_window(dataset, config):
     require_positive = random.random() > config.positive_fraction
-    window = dataset.random_document().random_window(require_positive)
-    if config.permute_tokens:
-        shuffle = np.random.permutation(config.window_len)
-        window.features = window.features[shuffle]
-        window.labels = window.labels[shuffle]
-    return window
+    return dataset.random_document().random_window(require_positive)
 
 
 def windowed_generator(dataset, config):
