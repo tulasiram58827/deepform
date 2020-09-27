@@ -10,9 +10,13 @@ from deepform.data.tokenize_pdfs import extract_doc
 from deepform.model import load_model
 
 
-def infer_from_pdf(pdf_path, model_file=None):
+def infer_from_pdf(pdf_path, model=None, window_len=None):
     """Extract features from a PDF and run infrence on it."""
-    model, window_len = load_model(model_file)
+    if not model:
+        model, window_len = load_model()
+    if not window_len:
+        raise Exception("No window_len param provided or inferrable")
+
     doc = extract_doc(pdf_path, window_len)
 
     best_score_texts, individual_scores, _ = doc.predict_answer(model)
@@ -38,6 +42,6 @@ if __name__ == "__main__":
     model, window_len = load_model(args.model)
 
     for pdf in args.pdf:
-        predictions = infer_from_pdf(pdf, model)
+        predictions = infer_from_pdf(pdf, model, window_len)
         print(f"predictions for {pdf}")
         print(predictions)
