@@ -63,7 +63,9 @@ class Document:
     def __getitem__(self, n):
         """Return the `n`th window in the document."""
         k = n + self.window_len
-        return Window(self.tokens.iloc[n:k], self.features[n:k], self.labels[n:k])
+        return Window(
+            self.tokens.iloc[n:k], self.features[n:k], self.labels[n:k]
+        ).center_geometry()
 
     def __len__(self):
         """Return the number of windows in the document.

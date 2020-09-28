@@ -15,9 +15,9 @@ class Window:
     def __len__(self):
         return len(self.labels)
 
-    def normalize_geometry(self):
-        """Alter the geometry fields to make windows always have 0 minimums."""
+    def center_geometry(self):
+        """Alter the geometry fields to center windows around 0."""
         self.featuers = self.features.copy()
-        self.features[:, 2] -= np.min(self.features[:, 2])  # Normalize x coordinates.
-        self.features[:, 3] -= np.min(self.features[:, 3])  # Normalize y coordinates.
+        self.features[:, 2] -= np.mean(self.features[:, 2])  # Center x coordinates.
+        self.features[:, 3] -= np.mean(self.features[:, 3])  # Center y coordinates.
         return self
