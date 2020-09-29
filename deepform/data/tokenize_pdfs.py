@@ -34,7 +34,7 @@ def tokenize_pdf(pdf_path):
         pages.append(df[["page", "x0", "y0", "x1", "y1", "token"]])
     if not pages:
         raise EOFError(f"No tokens found in {pdf_path}")
-    return pd.concat(pages)
+    return pd.concat(pages).reset_index(drop=True)
 
 
 def create_token_doc(pdf_path, token_dir=TOKEN_DIR):
