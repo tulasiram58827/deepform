@@ -38,16 +38,10 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
         slug = doc.slug
         answer_texts = doc.label_values
 
-        predict_texts, predict_scores, all_scores = doc.predict_answer(model)
-        # predict_texts = np.ma.masked_array(
-        #     predict_texts, mask=predict_scores[:, 0] < 0.8
-        # )
-        predict_texts = list(predict_texts)
+        predict_texts, predict_scores, all_scores = doc.predict_answer(
+            model, config.predict_thresh
+        )
         answer_texts = [answer_texts[c] for c in LABEL_COLS.keys()]
-
-        # for i in range(len(predict_texts)):
-        #     if predict_scores[i] < 0.8:
-        #         predict_texts[i] = None
 
         doc_output = doc.show_predictions(predict_texts, predict_scores, all_scores)
         # path = log_path / ("right" if match else "wrong")
@@ -60,11 +54,14 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
         for i, (field, answer_text) in enumerate(doc.label_values.items()):
             predict_text = predict_texts[i]
             predict_score = predict_scores[i]
-            match = loose_match(predict_text, answer_text)
-            if field == "gross_amount":
-                match = match or dollar_match(predict_text, answer_text)
-            elif field in ("flight_from", "flight_to"):
-                match = match or date_match(predict_text, answer_text)
+            if predict_score < config.predict_thresh:
+                match = not answer_text
+            else:
+                match = loose_match(predict_text, answer_text)
+                if field == "gross_amount":
+                    match = match or dollar_match(predict_text, answer_text)
+                elif field in ("flight_from", "flight_to"):
+                    match = match or date_match(predict_text, answer_text)
 
             accuracies[field] += match
             # print(
@@ -72,7 +69,7 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             #     f"({predict_score} / {match})"
             # )
 
-            prefix = "✔️ " if match else "❌"
+            prefix = "✔️" if match else "❌"
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
 
