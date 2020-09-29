@@ -16,7 +16,7 @@ import wandb
 from tensorflow import keras as K
 from wandb.keras import WandbCallback
 
-from deepform.common import LOG_DIR, TRAINING_INDEX
+from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_ENTITY, WANDB_PROJECT
 from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
@@ -124,7 +124,7 @@ class DocAccCallback(K.callbacks.Callback):
         wandb.log({self.logname: acc_str})
 
 
-def main(run, config):
+def main(config):
     config.name = config_desc(config)
     if config.use_wandb:
         run.save()
@@ -158,16 +158,24 @@ def main(run, config):
 
     if config.save_model:
         model_filepath = save_model(model, config)
-        artifact = wandb.Artifact("deepform-model", type="model")
+        alias = model_filepath.name
+        artifact = wandb.Artifact(
+            "deepform-model", type="model", metadata={"name": alias}
+        )
         artifact.add_dir(
             str(model_filepath)
         )  # TODO: check that this is necessary? What does wandb api expect here?
-        run.log_artifact(artifact)
+        run.log_artifact(artifact, aliases=["latest", alias])
 
 
 if __name__ == "__main__":
     # First read in the initial configuration.
-    run = wandb.init(project="extract_total", entity="deepform", allow_val_change=True)
+    run = wandb.init(
+        project=WANDB_PROJECT,
+        entity=WANDB_ENTITY,
+        job_type="train",
+        allow_val_change=True,
+    )
     config = run.config
 
     # Then override it with any parameters passed along the command line.
@@ -193,4 +201,4 @@ if __name__ == "__main__":
 
     logger.setLevel(config.log_level)
 
-    main(run, config)
+    main(config)
