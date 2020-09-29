@@ -142,3 +142,4 @@ def save_model(model, config):
     basename = Path(config.model_path) or default_model_name(config.window_len)
     basename.parent.mkdir(parents=True, exist_ok=True)
     model.save(basename)
+    return basename

@@ -124,7 +124,7 @@ class DocAccCallback(K.callbacks.Callback):
         wandb.log({self.logname: acc_str})
 
 
-def main(config):
+def main(run, config):
     config.name = config_desc(config)
     if config.use_wandb:
         run.save()
@@ -157,7 +157,12 @@ def main(config):
     )
 
     if config.save_model:
-        save_model(model, config)
+        model_filepath = save_model(model, config)
+        artifact = wandb.Artifact("deepform-model", type="model")
+        artifact.add_dir(
+            str(model_filepath)
+        )  # TODO: check that this is necessary? What does wandb api expect here?
+        run.log_artifact(artifact)
 
 
 if __name__ == "__main__":
@@ -188,4 +193,4 @@ if __name__ == "__main__":
 
     logger.setLevel(config.log_level)
 
-    main(config)
+    main(run, config)
