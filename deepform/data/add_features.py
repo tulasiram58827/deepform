@@ -46,7 +46,7 @@ LABEL_COLS = {
 }
 
 
-def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
+def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_count):
     """Split data into individual documents, add features, and write to parquet."""
 
     token_files = {p.stem: p for p in source_dir.glob("*.parquet")}
@@ -67,6 +67,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
                 "token_file": token_files[slug],
                 "dest_file": out_path / f"{slug}.parquet",
                 "labels": labels,
+                "max_token_count": max_token_count,
             }
         )
 
@@ -97,12 +98,12 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, labels):
+def process_document_tokens(token_file, dest_file, labels, max_token_count):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
-    doc = pd.read_parquet(token_file)
+    doc = pd.read_parquet(token_file).reset_index(drop=True)
 
-    doc = label_tokens(doc, labels)
+    doc = label_tokens(doc, labels, max_token_count)
 
     # Strip whitespace off all tokens.
     doc["token"] = doc.token.str.strip()
@@ -131,46 +132,32 @@ def process_document_tokens(token_file, dest_file, labels):
     # Return the summary information about the document.
     return {"slug": slug, "length": len(doc), **labels, **best_matches}
 
-## This is the function as it currently exists:
-def label_tokens(tokens, labels, n):
+
+def label_tokens(tokens, labels, max_token_count):
     for col_name, label_value in labels.items():
         tokens[col_name] = 0.0
         match_fn = LABEL_COLS[col_name]
 
-    # Assemble all the token strings that can be formed for a token at a specific index with maximum n-gram length of n
-        for index, token in tokens.token.items():  
+        # Assemble all the token strings that can be formed for a token
+        # at a specific index with maximum n-gram length of max_token_count
+        for i in range(len(tokens)):
             n_grams = []
             match_percentages = []
-            for x in range(1,n+1): # x is all the possible lengths of n-gram
-                for y in range (1, x+1): # y is all the possible index modifications for that length of n-gram
-                    n_gram = doc.loc[index-y+1:index-y+x, "token"].values.tolist()   
-                    n_gram = ''.join(n_gram)
+            for length in range(1, max_token_count + 1):
+                for start in range(max(0, i - length + 1), i + 1):
+                    n_gram = tokens.token[start : start + length].values
+                    n_gram = " ".join(n_gram)
                     n_grams.append(n_gram)
 
-        # Calculate the match percentage for each of them using the correct match_fn
+            # Calculate the match percentage for each of them using the correct match_fn
             match_percentages = [match_fn(label_value, match) for match in n_grams]
 
-        # Take the maximum value from match_percentages
+            # Take the maximum value from match_percentages
             best_match = max(match_percentages)
 
-        #Add that value to the tokens column at the correct index
-            tokens.loc[index,col_name] = best_match
+            # Add that value to the tokens column at the correct index
+            tokens.loc[i, col_name] = best_match
     return tokens
-
-## Need to rewrite it with the following capacities: 
-def label_tokens(tokens, labels):
-    """
-    tokens is a 
-    """
-    # in here we need to add n (the maximum number of possible tokens in the target)
-    n = 5
-    # in here we need to compile a series of n possible answer sets.  
-    for col_name, label_value in labels.items():
-        match_fn = LABEL_COLS[col_name] # Gets us the particular match function to use for this type of data
-        tokens[col_name] = tokens.token.apply(match_fn, args=(label_value,)) #Applies the match function to the label value and ""  <<? 
-    # each token has to have only one value assigned to it rather than (N + N-1 + N-2 + ... + n-N).  So we're going to need a max function here. 
-    return tokens # Confirm this returns the entire set of tokens.
-
 
 
 def fraction_digits(s):
@@ -197,7 +184,11 @@ def add_base_features(token_df):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", help="CSV with labels for each document", default = DATA_DIR / "3_year_manifest.csv")
+    parser.add_argument(
+        "manifest",
+        help="CSV with labels for each document",
+        default=DATA_DIR / "3_year_manifest.csv",
+    )
     parser.add_argument(
         "indir",
         nargs="?",
@@ -216,6 +207,11 @@ if __name__ == "__main__":
         default=TRAINING_DIR,
         help="directory of parquet files",
     )
+    parser.add_argument(
+        "--max-token-count",
+        default=5,
+        help="maximum number of contiguous tokens to match against each label",
+    )
     parser.add_argument("--log-level", dest="log_level", default="INFO")
     args = parser.parse_args()
     logger.setLevel(args.log_level.upper())
@@ -226,4 +222,4 @@ if __name__ == "__main__":
     indir, index, outdir = Path(args.indir), Path(args.indexfile), Path(args.outdir)
     index.parent.mkdir(parents=True, exist_ok=True)
     outdir.mkdir(parents=True, exist_ok=True)
-    extend_and_write_docs(indir, manifest, index, outdir)
+    extend_and_write_docs(indir, manifest, index, outdir, args.max_token_count)
