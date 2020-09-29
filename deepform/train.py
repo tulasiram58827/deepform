@@ -54,20 +54,17 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
         for i, (field, answer_text) in enumerate(doc.label_values.items()):
             predict_text = predict_texts[i]
             predict_score = predict_scores[i]
-            if predict_score < config.predict_thresh:
-                match = not answer_text
-            else:
-                match = loose_match(predict_text, answer_text)
-                if field == "gross_amount":
-                    match = match or dollar_match(predict_text, answer_text)
-                elif field in ("flight_from", "flight_to"):
-                    match = match or date_match(predict_text, answer_text)
+            match = (
+                (predict_score < config.predict_thresh and not answer_text)
+                or loose_match(predict_text, answer_text)
+                or (field == "gross_amount" and dollar_match(predict_text, answer_text))
+                or (
+                    field in ("flight_from", "flight_to")
+                    and date_match(predict_text, answer_text)
+                )
+            )
 
             accuracies[field] += match
-            # print(
-            #     f"\t{i=}, {field}={answer_text}, {predict_text=} "
-            #     f"({predict_score} / {match})"
-            # )
 
             prefix = "✔️" if match else "❌"
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
