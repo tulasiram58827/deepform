@@ -28,6 +28,7 @@ from deepform.util import (
 
 n = 5
 
+
 class TokenType(Enum):
     NONE = 0
     CONTRACT_NUM = auto()
