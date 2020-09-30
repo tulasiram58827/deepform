@@ -131,7 +131,7 @@ class Document:
             name, value = item
             x = "✔️" if any_match(pred_texts[i], value) else "❌"
             predicted += f"\t{x}{name}: {pred_texts[i]} / {value} <{pred_scores[i]}>\n"
-            cols[f"{name}_?"] = ["*" if s > 0.8 else "" for s in scores[:, i]]
+            cols[f"{name}_?"] = ["*" if s > 0.5 else "" for s in scores[:, i]]
             cols[name] = scores[:, i]
 
         body = pd.DataFrame(
