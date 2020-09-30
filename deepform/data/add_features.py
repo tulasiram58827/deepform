@@ -211,6 +211,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--max-token-count",
+        type=int,
         default=5,
         help="maximum number of contiguous tokens to match against each label",
     )
