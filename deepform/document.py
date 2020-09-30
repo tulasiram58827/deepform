@@ -7,6 +7,7 @@ import pandas as pd
 
 from deepform.data.add_features import TokenType
 from deepform.features import fix_dtypes
+from deepform.util import any_match
 
 FEATURE_COLS = [
     "tok_id",
@@ -124,13 +125,14 @@ class Document:
     def show_predictions(self, pred_texts, pred_scores, scores):
         """Predict token scores and print them alongside the tokens and true labels."""
         title = f"======={self.slug}======="
-        predicted = "predictions (actual / predicted <score>):\n"
+        predicted = "field (predicted / actual <score>):\n"
         cols = {}
         for i, item in enumerate(self.label_values.items()):
             name, value = item
-            predicted += f"\t{name}: {pred_texts[i]} / {value} <{pred_scores[i]}>\n"
+            x = "✔️" if any_match(pred_texts[i], value) else "❌"
+            predicted += f"\t{x}{name}: {pred_texts[i]} / {value} <{pred_scores[i]}>\n"
             cols[f"{name}_?"] = ["*" if s > 0.8 else "" for s in scores[:, i]]
-            cols[f"{name}_s"] = scores[:, i]
+            cols[name] = scores[:, i]
 
         body = pd.DataFrame(
             {
