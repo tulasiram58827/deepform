@@ -26,8 +26,6 @@ from deepform.util import (
     log_dollar_amount,
 )
 
-n = 5
-
 
 class TokenType(Enum):
     NONE = 0
