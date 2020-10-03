@@ -82,7 +82,7 @@ learning_rate:
 # Affects prediction
 predict_thresh:
   desc: predictions below this value count as predicting "None"
-  value: 0.8
+  value: 0.5
 
 # These do not affect the training but control various setup and reporting
 render_results_size:
