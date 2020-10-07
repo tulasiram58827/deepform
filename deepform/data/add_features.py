@@ -55,9 +55,7 @@ MAX_TOKENS_BY_TARGET = {
 }
 
 
-def extend_and_write_docs(
-    source_dir, manifest, pq_index, out_path, max_token_count=None
-):
+def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_count):
     """Split data into individual documents, add features, and write to parquet."""
 
     token_files = {p.stem: p for p in source_dir.glob("*.parquet")}
@@ -109,7 +107,7 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, labels, max_token_count=None):
+def process_document_tokens(token_file, dest_file, labels, max_token_count):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
     doc = pd.read_parquet(token_file).reset_index(drop=True)
@@ -144,18 +142,17 @@ def process_document_tokens(token_file, dest_file, labels, max_token_count=None)
     return {"slug": slug, "length": len(doc), **labels, **best_matches}
 
 
-def label_tokens(tokens, labels, max_token_count=None):
-    if max_token_count is None:
-        max_token_count = MAX_TOKENS_BY_TARGET
-    max_token_count = {**MAX_TOKENS_BY_TARGET, **max_token_count}
-
+def label_tokens(tokens, labels, max_token_count):
     for col_name, label_value in labels.items():
         tokens[col_name] = 0.0
-        match_fn = LABEL_COLS.get(col_name, default=default_similarity)
-        span_limit = max_token_count.get(col_name, default=3)
-        tokens[col_name] = label_multitoken(
-            tokens.token.to_numpy(), label_value, span_limit, match_fn
-        )
+        match_fn = LABEL_COLS[col_name]
+        max_token_count = MAX_TOKENS_BY_TARGET[col_name]
+        if col_name == "advertiser":
+            tokens[col_name] = label_multitoken(
+                tokens.token.to_numpy(), label_value, max_token_count, match_fn
+            )
+        else:
+            tokens[col_name] = tokens.token.apply(match_fn, args=(label_value,))
 
     return tokens
 
@@ -217,12 +214,12 @@ if __name__ == "__main__":
         default=TRAINING_DIR,
         help="directory of parquet files",
     )
-    for key in LABEL_COLS:
-        parser.add_argument(
-            f"--max-span-{key}",
-            type=int,
-            help=f"maximum number of contiguous tokens to match {key} against",
-        )
+    parser.add_argument(
+        "--max-token-count",
+        type=int,
+        default=5,
+        help="maximum number of contiguous tokens to match against each label",
+    )
     parser.add_argument("--log-level", dest="log_level", default="INFO")
     args = parser.parse_args()
     logger.setLevel(args.log_level.upper())
@@ -233,8 +230,4 @@ if __name__ == "__main__":
     indir, index, outdir = Path(args.indir), Path(args.indexfile), Path(args.outdir)
     index.parent.mkdir(parents=True, exist_ok=True)
     outdir.mkdir(parents=True, exist_ok=True)
-
-    max_token_count = {
-        key[11:]: value for key, value in args.items() if key.startswith("--max-span-")
-    }
-    extend_and_write_docs(indir, manifest, index, outdir, max_token_count)
+    extend_and_write_docs(indir, manifest, index, outdir, args.max_token_count)
