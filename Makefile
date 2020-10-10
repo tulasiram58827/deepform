@@ -62,10 +62,15 @@ data/token_frequency.csv: data/tokenized ## Produce token frequency csv file
 	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) \
 	python -m deepform.data.create_vocabulary
 
+data/3_year_manifest.csv: data/2012_manifest.tsv data/2014_manifest.tsv data/2020_manifest.csv ## combine manifests from three yuears into one manifest with all three years data
+	docker build -t $(CONTAINER) .
+	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) \
+	python -m deepform.data.combine_manifests
+
 data/doc_index.parquet: data/tokenized data/token_frequency.csv ## Create the training data from the token files and label manifest
 	docker build -t $(CONTAINER) .
 	docker run --rm --mount type=bind,source=$(CURDIR)/data,target=/data $(CONTAINER) \
-	python -m deepform.data.add_features data/fcc-data-2020-labeled-manifest.csv
+	python -m deepform.data.add_features data/3_year_manifest.csv
 
 .PHONY: train
 train: data/doc_index.parquet data/token_frequency.csv .env docker-build ## Run full model training
