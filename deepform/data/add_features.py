@@ -145,7 +145,8 @@ def label_tokens(tokens, labels):
     for col_name, label_value in labels.items():
         tokens[col_name] = 0.0
         match_fn = LABEL_COLS[col_name]
-        max_token_count = MAX_TOKENS_BY_TARGET[col_name]
+
+        max_token_count = MAX_TOKENS_BY_TARGET.get(col_name, default=3)
 
         tokens[col_name] = label_multitoken(
             tokens.token.to_numpy(), label_value, max_token_count, match_fn
