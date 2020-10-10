@@ -55,7 +55,7 @@ MAX_TOKENS_BY_TARGET = {
 }
 
 
-def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_count):
+def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
     """Split data into individual documents, add features, and write to parquet."""
 
     token_files = {p.stem: p for p in source_dir.glob("*.parquet")}
