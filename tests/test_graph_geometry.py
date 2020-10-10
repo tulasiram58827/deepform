@@ -6,12 +6,16 @@ from deepform.data.graph_geometry import document_edges
 # ASCII Art of Test Example
 #
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> dc1b9f4... Add a more complete test suite example for graph geometry
 # A --- B --- C
 # |  W--|--X  |
 # D -|- E -|- F
 # |  Y -|- Z  |
 # G --- H --- I
 
+<<<<<<< HEAD
 A = {"token": "A", "x0": 1, "y1": 1, "page": 0}
 B = {"token": "B", "x0": 3, "y1": 1, "page": 0}
 C = {"token": "C", "x0": 5, "y1": 1, "page": 0}
@@ -25,11 +29,27 @@ W = {"token": "W", "x0": 2, "y1": 2, "page": 0}
 X = {"token": "X", "x0": 4, "y1": 2, "page": 0}
 Y = {"token": "Y", "x0": 2, "y1": 4, "page": 0}
 Z = {"token": "Z", "x0": 4, "y1": 4, "page": 0}
+=======
+A = {"token": "A", "x0": 1, "y1": 1}
+B = {"token": "B", "x0": 3, "y1": 1}
+C = {"token": "C", "x0": 5, "y1": 1}
+D = {"token": "D", "x0": 1, "y1": 3}
+E = {"token": "E", "x0": 3, "y1": 3}
+F = {"token": "F", "x0": 5, "y1": 3}
+G = {"token": "G", "x0": 1, "y1": 5}
+H = {"token": "H", "x0": 3, "y1": 5}
+I = {"token": "I", "x0": 5, "y1": 5}  # noqa: E741
+W = {"token": "W", "x0": 2, "y1": 2}
+X = {"token": "X", "x0": 4, "y1": 2}
+Y = {"token": "Y", "x0": 2, "y1": 4}
+Z = {"token": "Z", "x0": 4, "y1": 4}
+>>>>>>> dc1b9f4... Add a more complete test suite example for graph geometry
 
 tokens = pd.DataFrame.from_records([A, B, C, D, E, F, G, H, I, W, X, Y, Z])
 
 # Manually construct the sparse matrix of edges for the above example.
 edges = np.zeros((13, 13))
+<<<<<<< HEAD
 edges[0, 1] = True  # A B
 edges[1, 2] = True  # B C
 edges[3, 4] = True  # D E
@@ -46,12 +66,35 @@ edges[9, 10] = True  # W X
 edges[11, 12] = True  # Y Z
 edges[9, 11] = True  # W Y
 edges[10, 12] = True  # X Z
+=======
+edges[0, 1] = 1  # A B
+edges[1, 2] = 1  # B C
+edges[3, 4] = 1  # D E
+edges[4, 5] = 1  # E F
+edges[6, 7] = 1  # G H
+edges[7, 8] = 1  # H I
+edges[0, 3] = 1  # A D
+edges[3, 6] = 1  # D G
+edges[1, 4] = 1  # B E
+edges[4, 7] = 1  # E H
+edges[2, 5] = 1  # C F
+edges[5, 8] = 1  # F I
+edges[9, 10] = 1  # W X
+edges[11, 12] = 1  # Y Z
+edges[9, 11] = 1  # W Y
+edges[10, 12] = 1  # X Z
+>>>>>>> dc1b9f4... Add a more complete test suite example for graph geometry
 
 # Add in the symmetric relationships
 edges = edges + edges.T
 
+<<<<<<< HEAD
 adjacency = document_edges(tokens).todense()
 expected = edges
+=======
+adjacency = document_edges(tokens)
+expected = edges + np.eye(13)
+>>>>>>> dc1b9f4... Add a more complete test suite example for graph geometry
 
 
 def test_9x9_adjacency():
@@ -71,6 +114,7 @@ def test_disconnected():
     disconnectedBottom = adjacency[0:9, 9:]
     assert (disconnectedRight == 0).all()
     assert (disconnectedBottom == 0).all()
+<<<<<<< HEAD
 
 
 def test_different_pages():
@@ -110,3 +154,5 @@ def test_adjacency_matrix():
     expected = edges + np.eye(5)
     assert (adjacency == expected).all()
 >>>>>>> 45dcc52... Add basic adjacench matrix function for tokens with test
+=======
+>>>>>>> dc1b9f4... Add a more complete test suite example for graph geometry
