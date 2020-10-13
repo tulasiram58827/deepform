@@ -67,35 +67,21 @@ def document_edges(tokens, relative_tolerance=0.01):
         np.logical_not(np.isclose(np.abs(V_sim), 1, rtol=relative_tolerance)), dY
     )
 
-    # TODO: Integrate filtering for direct neighbors
+    test_right = ma.masked_where(np.greater(dX_h_aligned, 0), dX_h_aligned)
+    test_bottom = ma.masked_where(np.greater(dY_v_aligned, 0), dY_v_aligned)
 
-    # right_masked = ma.masked_where(np.less(dX_h_aligned, 0), dX_h_aligned)
-    # test_right = np.argmin(right_masked, axis=0)
-    #
-    # print(right_masked)
-    # print(test_right)
-    # print(right_masked.shape)
-    #
-    # print(right_masked)
-    #
-    # test_left = np.argmax(
-    #     ma.masked_where(np.greater(dX_h_aligned, 0), dX_h_aligned), axis=0
-    # )
-    # test_bottom = np.argmin(
-    #     ma.masked_where(np.less(dY_v_aligned, 0), dY_v_aligned), axis=0
-    # )
-    # test_top = np.argmax(
-    #     ma.masked_where(np.greater(dY_v_aligned, 0), dY_v_aligned), axis=0
-    # )
-    #
-    # print(test_left)
-    # print(test_top)
-    # print(test_bottom)
+    right_max = np.argmax(test_right, axis=0)
+    bottom_max = np.argmax(test_bottom, axis=0)
 
-    aligned = np.logical_xor(dX_h_aligned.mask, dY_v_aligned.mask)
-    adjacency = np.zeros(D.shape)
-    adjacency[aligned] = 1
-    adjacency = np.eye(D.shape[0]) + adjacency
+    adjacency = np.eye(len(tokens))
+
+    for i in range(len(tokens)):
+        if dX_h_aligned[i, right_max[i]]:
+            adjacency[i, right_max[i]] = 1
+            adjacency[right_max[i], i] = 1
+        if dY_v_aligned[i, bottom_max[i]]:
+            adjacency[i, bottom_max[i]] = 1
+            adjacency[bottom_max[i], i] = 1
 
     return adjacency
 >>>>>>> 45dcc52... Add basic adjacench matrix function for tokens with test
