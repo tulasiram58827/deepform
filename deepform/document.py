@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
 from deepform.data.add_features import TokenType
+from deepform.data.graph_geometry import document_edges
 from deepform.features import fix_dtypes
 from deepform.util import any_match
 
@@ -64,6 +65,7 @@ class Document:
     positive_windows: np.ndarray
     window_len: int
     label_values: dict[str, str]
+    adjacency_matrix: np.ndarray = field(init=False)
 
     def random_window(self, require_positive=False):
         if require_positive and len(self.positive_windows):
@@ -88,6 +90,9 @@ class Document:
         """Iterate over all windows in the document in order."""
         for i in range(len(self)):
             yield self[i]
+
+    def __post_init__(self):
+        super().__setattr__("adjacency_matrix", document_edges(self.tokens))
 
     def predict_scores(self, model):
         """Use a model to predict labels for each of the document tokens."""
