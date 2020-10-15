@@ -21,7 +21,7 @@ from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
 from deepform.model import create_model, save_model, windowed_generator
-from deepform.pdfs import log_pdf
+from deepform.pdfs import log_pdfs
 from deepform.util import config_desc, date_match, dollar_match, loose_match
 
 
@@ -34,6 +34,8 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
 
     accuracies = defaultdict(int)
 
+    pdf_doc_logs = []
+    # take the first page that has the answer & use the threshold 0.5
     for doc in sorted(dataset.sample(n_docs), key=lambda d: d.slug):
         slug = doc.slug
         answer_texts = doc.label_values
@@ -57,9 +59,18 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
 
         if print_results:
             print(f"file_id:{slug}")
+        
+        doc_log = {}
+        for log_key in ["pred_text", "true_text", "score", "field", "match"]:
+            doc_log[log_key] = []
         for i, (field, answer_text) in enumerate(doc.label_values.items()):
             predict_text = predict_texts[i]
+            doc_log["pred_text"].append(predict_text)
             predict_score = predict_scores[i]
+            doc_log["score"].append(predict_score)
+            doc_log["field"].append(field)
+            doc_log["true_text"].append(answer_text)
+
             match = loose_match(predict_text, answer_text)
             if field == "gross_amount":
                 match = match or dollar_match(predict_text, answer_text)
@@ -75,15 +86,19 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             prefix = "✔️ " if match else "❌"
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
-
+            doc_log["match"] = match
+            #pdf_doc_logs.append(doc_log)
+ 
             if print_results:
                 print(f"\t{prefix} {field}: {guessed}{correction}")
-                if not match and n_print > 0:
-                    log_pdf(
-                        doc, predict_score, all_scores[:, i], predict_text, answer_text
-                    )
-                    n_print -= 1
-
+        if print_results and n_print > 0:
+            log_pdfs(doc, doc_log, all_scores)
+            n_print -= 1
+                    #verdict, caption, page_images = log_pdf(
+                    #    doc, predict_score, all_scores[:, i], predict_text, answer_text
+                    #)
+                    #n_print -= 1
+    print(accuracies)
     return pd.Series(accuracies) / n_docs
 
 
@@ -94,6 +109,13 @@ class DocAccCallback(K.callbacks.Callback):
         self.dataset = dataset
         self.logname = logname
         self.log_path = LOG_DIR / "predictions" / run_timestamp
+
+    def mean_field_acc(self, acc_dict):
+        # return the average accuracy across all fields
+        # advertiser, contract_num, flight_from, flight_to, gross_amount
+        # we may want to adjust the relative weighting of these in the future
+        total_acc = sum(v for v in acc_dict.values())
+        return total_acc / 5.0
 
     def on_epoch_end(self, epoch, logs):
         if epoch >= self.config.epochs - 1:
@@ -121,7 +143,11 @@ class DocAccCallback(K.callbacks.Callback):
         acc_str = re.sub(r"\s+", " ", acc.to_string())
 
         print(f"This epoch {self.logname}: {acc_str}")
-        wandb.log({self.logname: acc_str})
+        acc_dict = acc.to_dict()
+        print("acc dict: ", acc_dict)
+        wandb.log(acc_dict)
+        # compute average accuracy
+        wandb.log({"mean_field_acc" : self.mean_field_acc(acc_dict)})
 
 
 def main(config):
@@ -161,25 +187,26 @@ def main(config):
 
 
 if __name__ == "__main__":
+    os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
     # First read in the initial configuration.
-    run = wandb.init(project="extract_total", entity="deepform", allow_val_change=True)
+    run = wandb.init(project="extract_total", allow_val_change=True)
     config = run.config
-
     # Then override it with any parameters passed along the command line.
     parser = argparse.ArgumentParser()
 
     # Anything in the config is fair game to be overridden by a command line flag.
-    for key, info in config.as_dict().items():
+    tmp_config = dict(config)
+    for key, info in tmp_config.items():
         if key.startswith("_"):
             continue
-        value = info["value"]
+        value = info
         cli_flag = "--" + key.replace("_", "-")
         parser.add_argument(
-            cli_flag, dest=key, help=info["desc"], type=type(value), default=value
+            cli_flag, dest=key, type=type(value), default=value
         )
 
     args = parser.parse_args()
-    config.update(args, allow_val_change=True)
+    config.update(args) # allow_val_change=True)
 
     if not config.use_wandb:
         os.environ["WANDB_SILENT"] = "true"
