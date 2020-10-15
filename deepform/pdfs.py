@@ -111,7 +111,8 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
     wandb.log({f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)})
 
 
-def log_pdf(doc, score, scores, predict_text, answer_text):
+def render_pdf(doc, score, scores, predict_text, answer_text):
+
     fname = get_pdf_path(doc.slug)
     try:
         pdf = pdfplumber.open(fname)
@@ -161,8 +162,7 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
         ]
         rects = [docrow_to_bbox(t) for t in target_toks]
         im.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
-
-        page_images.append(wandb.Image(im.annotated, caption="page " + str(pagenum)))
+        page_images.append({"caption": f"page {pagenum}", "image": im.annotated})
 
     # get best matching score of any token in the training data
     match = doc.tokens[SINGLE_CLASS_PREDICTION].max()
@@ -170,4 +170,18 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
         f"{doc.slug} guessed:{predict_text} answer:{answer_text} match:{match:.2f}"
     )
     verdict = dollar_match(predict_text, answer_text)
+
+    if dollar_match(predict_text, answer_text):
+        caption = "CORRECT " + caption
+    else:
+        caption = "INCORRECT " + caption
     return verdict, caption, page_images
+
+
+def log_pdf(doc, score, scores, predict_text, answer_text):
+    caption, page_images = render_pdf(doc, score, predict_text, answer_text)
+    page_images = [
+        wandb.Image(page_image["image"], page_image["caption"])
+        for page_image in page_images
+    ]
+    wandb.log({caption: page_images})
