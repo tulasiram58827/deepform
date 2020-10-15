@@ -7,6 +7,7 @@ import pandas as pd
 
 from deepform.data.add_features import TokenType
 from deepform.features import fix_dtypes
+from deepform.util import any_match
 
 FEATURE_COLS = [
     "tok_id",
@@ -100,36 +101,35 @@ class Document:
 
         return scores
 
-    def predict_answer(self, model):
-        """Score each token and return the text and score of the best match."""
+    def predict_answer(self, model, threshold):
+        """Score each token and return all texts that exceed the threshold."""
         # The first score column is how "irrelevant" a token is, so drop it.
         scores = self.predict_scores(model)[:, 1:]
-        best_score_idxs = np.argmax(scores, axis=0)
-        best_score_texts = self.tokens.iloc[best_score_idxs]["token"]
-        individual_scores = np.diag(scores[best_score_idxs])
-        return best_score_texts, individual_scores, scores
+
+        score_texts, individual_scores = [], []
+        for column in scores.T:
+            text, score = best_token(column, self.tokens.token, threshold)
+            score_texts.append(text)
+            individual_scores.append(score)
+
+        return score_texts, individual_scores, scores
 
     def show_predictions(self, pred_texts, pred_scores, scores):
         """Predict token scores and print them alongside the tokens and true labels."""
-        # pred_text, pred_score, scores = self.predict_answer(model)
         title = f"======={self.slug}======="
-        predicted = "predictions (actual / predicted <score>):\n"
-        cols = {}
+        predicted = "field (predicted / actual <score>):\n"
+
+        df = pd.DataFrame({"token": self.tokens.token.str.slice(0, 20)})
+        df["label"] = [TokenType(x).name if x else "" for x in self.labels]
+
         for i, item in enumerate(self.label_values.items()):
             name, value = item
-            predicted += f"\t{name}: {pred_texts[i]} / {value} <{pred_scores[i]}>\n"
-            cols[f"{name}_?"] = ["*" if s > 0.8 else "" for s in scores[:, i]]
-            cols[f"{name}_s"] = scores[:, i]
+            x = "✔️" if any_match(pred_texts[i], value) else "❌"
+            predicted += f"\t{x}{name}: {pred_texts[i]} / {value} <{pred_scores[i]}>\n"
+            df[name] = [f"{'*' if s > 0.5 else ''} {s:0.5f}" for s in scores[:, i]]
 
-        body = pd.DataFrame(
-            {
-                "token": self.tokens.token,
-                "label": [TokenType(x).name if x else "" for x in self.labels],
-                **cols,
-            }
-        )
-        body = body.iloc[self.window_len - 1 : 1 - self.window_len]
-        return "\n".join([title, predicted, body.to_string()])
+        df = df.iloc[self.window_len - 1 : 1 - self.window_len]
+        return "\n".join([title, predicted, df.to_string()])
 
     @staticmethod
     def from_parquet(slug, label_values, pq_path, config):
@@ -178,3 +178,31 @@ def actual_value(df, value_col, match_col):
     """Return the best value from `value_col`, as evaluated by `match_col`."""
     index = df[match_col].argmax()
     return df.iloc[index][value_col]
+
+
+def best_token(scores, tokens, threshold):
+    # All runs of tokens where each token meets the threshold.
+    options = list(selected_tokens(scores, tokens, threshold))
+    if options:
+        # Take the text with the highest score.
+        score, text = list(sorted(options, key=lambda t: t[0] * len(t[1])))[-1]
+    else:
+        # No sequence meets the threshold, so choose the best single token.
+        text = tokens[np.argmax(scores)]
+        score = np.max(scores)
+    return text, score
+
+
+def selected_tokens(scores, tokens, threshold):
+    """Yield all consecutive runs of tokens where each token exceeds the threshold."""
+    current_strings, current_score, count = [], 0, 0
+    for s, t in zip(scores, tokens):
+        if s > threshold:
+            current_strings.append(t)
+            current_score += s
+            count += 1
+        elif count > 0:
+            yield current_score / count, " ".join(current_strings)
+            current_strings, current_score, count = [], 0, 0
+    if count > 0:
+        yield current_score / count, " ".join(current_strings)

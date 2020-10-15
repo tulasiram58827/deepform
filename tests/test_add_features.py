@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 
 import pandas as pd
-
 from babel.numbers import format_currency
+
 from deepform.data.add_features import (
     extend_and_write_docs,
     fraction_digits,
@@ -58,7 +58,7 @@ def create_tokens_and_manifest(faker, src_path, manifest_path, num_docs=5):
     manifest = []
 
     for slug, doc in docs.items():
-        doc.to_parquet(src_path / f"{slug}.parquet", compression="lz4", index=False)
+        doc.to_parquet(src_path / f"{slug}.parquet", index=False)
         manifest.append(
             {
                 "file_id": slug,
@@ -82,7 +82,7 @@ def test_add_features_to_labeled_parquet(faker, tmp_path):
     idx_path, pq_path = pq_index_and_dir(idx_path)
 
     # Run the conversion code.
-    extend_and_write_docs(src_path, manifest, idx_path, pq_path)
+    extend_and_write_docs(src_path, manifest, idx_path, pq_path, 1)
 
     # Check out the index.
     index = pd.read_parquet(idx_path)

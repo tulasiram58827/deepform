@@ -16,7 +16,7 @@ import wandb
 from tensorflow import keras as K
 from wandb.keras import WandbCallback
 
-from deepform.common import LOG_DIR, TRAINING_INDEX
+from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_ENTITY, WANDB_PROJECT
 from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
@@ -40,16 +40,10 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
         slug = doc.slug
         answer_texts = doc.label_values
 
-        predict_texts, predict_scores, all_scores = doc.predict_answer(model)
-        # predict_texts = np.ma.masked_array(
-        #     predict_texts, mask=predict_scores[:, 0] < 0.8
-        # )
-        predict_texts = list(predict_texts)
+        predict_texts, predict_scores, all_scores = doc.predict_answer(
+            model, config.predict_thresh
+        )
         answer_texts = [answer_texts[c] for c in LABEL_COLS.keys()]
-
-        # for i in range(len(predict_texts)):
-        #     if predict_scores[i] < 0.8:
-        #         predict_texts[i] = None
 
         doc_output = doc.show_predictions(predict_texts, predict_scores, all_scores)
         # path = log_path / ("right" if match else "wrong")
@@ -71,19 +65,19 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             doc_log["field"].append(field)
             doc_log["true_text"].append(answer_text)
 
-            match = loose_match(predict_text, answer_text)
-            if field == "gross_amount":
-                match = match or dollar_match(predict_text, answer_text)
-            elif field in ("flight_from", "flight_to"):
-                match = match or date_match(predict_text, answer_text)
+            match = (
+                (predict_score < config.predict_thresh and not answer_text)
+                or loose_match(predict_text, answer_text)
+                or (field == "gross_amount" and dollar_match(predict_text, answer_text))
+                or (
+                    field in ("flight_from", "flight_to")
+                    and date_match(predict_text, answer_text)
+                )
+            )
 
             accuracies[field] += match
-            # print(
-            #     f"\t{i=}, {field}={answer_text}, {predict_text=} "
-            #     f"({predict_score} / {match})"
-            # )
 
-            prefix = "✔️ " if match else "❌"
+            prefix = "✔️" if match else "❌"
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
             doc_log["match"] = match
@@ -156,7 +150,7 @@ def main(config):
         run.save()
 
     print("Configuration:")
-    print(config)
+    print("{\n\t" + ",\n\t".join(f"'{k}': {v}" for k, v in config.items()) + "\n}")
 
     run_ts = datetime.now().isoformat(timespec="seconds").replace(":", "")
 
@@ -183,27 +177,35 @@ def main(config):
     )
 
     if config.save_model:
-        save_model(model, config)
+        model_filepath = save_model(model, config)
+        alias = model_filepath.name
+        artifact = wandb.Artifact(
+            "deepform-model", type="model", metadata={"name": alias}
+        )
+        artifact.add_dir(
+            str(model_filepath)
+        )  # TODO: check that this is necessary? What does wandb api expect here?
+        run.log_artifact(artifact, aliases=["latest", alias])
 
 
 if __name__ == "__main__":
     os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
     # First read in the initial configuration.
-    run = wandb.init(project="extract_total", allow_val_change=True)
+    os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
+    run = wandb.init(
+        project=WANDB_PROJECT,
+        entity=WANDB_ENTITY,
+        job_type="train",
+        allow_val_change=True,
+    )
     config = run.config
     # Then override it with any parameters passed along the command line.
     parser = argparse.ArgumentParser()
 
     # Anything in the config is fair game to be overridden by a command line flag.
-    tmp_config = dict(config)
-    for key, info in tmp_config.items():
-        if key.startswith("_"):
-            continue
-        value = info
-        cli_flag = "--" + key.replace("_", "-")
-        parser.add_argument(
-            cli_flag, dest=key, type=type(value), default=value
-        )
+    for key, value in config.items():
+        cli_flag = f"--{key}".replace("_", "-")
+        parser.add_argument(cli_flag, dest=key, type=type(value), default=value)
 
     args = parser.parse_args()
     config.update(args) # allow_val_change=True)

@@ -17,7 +17,7 @@ _whitespace = re.compile(r"\s")
 
 def simple_string(s):
     """Lowercase and remove whitespace from a string."""
-    return _whitespace.sub("", str(s).casefold()) if s else ""
+    return _whitespace.sub("", s.casefold()) if isinstance(s, str) else ""
 
 
 def num_digits(s):
@@ -125,6 +125,14 @@ def date_match(predicted, actual):
     """Best-effort matching of dates, e.g. '02-03-2020' to '2/3/20'."""
     lhs, rhs = normalize_date(predicted), normalize_date(actual)
     return bool(lhs and rhs and lhs == rhs)
+
+
+def any_similarity(lhs, rhs):
+    return max(dollar_similarity(lhs, rhs), date_similarity(lhs, rhs))
+
+
+def any_match(lhs, rhs):
+    return loose_match(lhs, rhs) or dollar_match(lhs, rhs) or date_match(lhs, rhs)
 
 
 def docrow_to_bbox(t, min_height=10):

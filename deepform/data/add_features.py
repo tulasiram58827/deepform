@@ -15,7 +15,7 @@ import pandas as pd
 from fuzzywuzzy import fuzz
 from tqdm import tqdm
 
-from deepform.common import TOKEN_DIR, TRAINING_DIR, TRAINING_INDEX
+from deepform.common import DATA_DIR, TOKEN_DIR, TRAINING_DIR, TRAINING_INDEX
 from deepform.data.create_vocabulary import get_token_id
 from deepform.logger import logger
 from deepform.util import (
@@ -46,7 +46,7 @@ LABEL_COLS = {
 }
 
 
-def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
+def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_count):
     """Split data into individual documents, add features, and write to parquet."""
 
     token_files = {p.stem: p for p in source_dir.glob("*.parquet")}
@@ -67,6 +67,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
                 "token_file": token_files[slug],
                 "dest_file": out_path / f"{slug}.parquet",
                 "labels": labels,
+                "max_token_count": max_token_count,
             }
         )
 
@@ -82,7 +83,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path):
 
     logger.debug(f"Writing document index to {pq_index}...")
     doc_index = pd.DataFrame(doc_results).set_index("slug", drop=True)
-    doc_index.to_parquet(pq_index, compression="lz4")
+    doc_index.to_parquet(pq_index)
 
 
 def pq_index_and_dir(pq_index, pq_path=None):
@@ -97,12 +98,12 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, labels):
+def process_document_tokens(token_file, dest_file, labels, max_token_count):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
-    doc = pd.read_parquet(token_file)
+    doc = pd.read_parquet(token_file).reset_index(drop=True)
 
-    doc = label_tokens(doc, labels)
+    doc = label_tokens(doc, labels, max_token_count)
 
     # Strip whitespace off all tokens.
     doc["token"] = doc.token.str.strip()
@@ -126,17 +127,35 @@ def process_document_tokens(token_file, dest_file, labels):
         doc["label"] = np.maximum(doc["label"], matches)
 
     # Write to its final location.
-    doc.to_parquet(dest_file, compression="lz4", index=False)
+    doc.to_parquet(dest_file, index=False)
 
     # Return the summary information about the document.
     return {"slug": slug, "length": len(doc), **labels, **best_matches}
 
 
-def label_tokens(tokens, labels):
+def label_tokens(tokens, labels, max_token_count):
     for col_name, label_value in labels.items():
+        tokens[col_name] = 0.0
         match_fn = LABEL_COLS[col_name]
-        tokens[col_name] = tokens.token.apply(match_fn, args=(label_value,))
+
+        if col_name == "advertiser":
+            tokens[col_name] = label_multitoken(
+                tokens.token.to_numpy(), label_value, max_token_count, match_fn
+            )
+        else:
+            tokens[col_name] = tokens.token.apply(match_fn, args=(label_value,))
+
     return tokens
+
+
+def label_multitoken(tokens, value, token_count, match_fn=default_similarity):
+    best_match_values = np.array([match_fn(value, x) for x in tokens])
+    for c in range(1, token_count):
+        texts = [" ".join(tokens[i - c : i]) for i in range(c, tokens.size)]
+        match_values = np.array([match_fn(value, x) for x in texts] + [0] * c)
+        for p in range(c):
+            best_match_values = np.maximum(best_match_values, np.roll(match_values, p))
+    return best_match_values
 
 
 def fraction_digits(s):
@@ -163,7 +182,11 @@ def add_base_features(token_df):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", help="CSV with labels for each document")
+    parser.add_argument(
+        "manifest",
+        help="CSV with labels for each document",
+        default=DATA_DIR / "3_year_manifest.csv",
+    )
     parser.add_argument(
         "indir",
         nargs="?",
@@ -182,6 +205,12 @@ if __name__ == "__main__":
         default=TRAINING_DIR,
         help="directory of parquet files",
     )
+    parser.add_argument(
+        "--max-token-count",
+        type=int,
+        default=5,
+        help="maximum number of contiguous tokens to match against each label",
+    )
     parser.add_argument("--log-level", dest="log_level", default="INFO")
     args = parser.parse_args()
     logger.setLevel(args.log_level.upper())
@@ -192,4 +221,4 @@ if __name__ == "__main__":
     indir, index, outdir = Path(args.indir), Path(args.indexfile), Path(args.outdir)
     index.parent.mkdir(parents=True, exist_ok=True)
     outdir.mkdir(parents=True, exist_ok=True)
-    extend_and_write_docs(indir, manifest, index, outdir)
+    extend_and_write_docs(indir, manifest, index, outdir, args.max_token_count)
