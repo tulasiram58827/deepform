@@ -57,7 +57,7 @@ def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
         logger.warn(f"Cannot open pdf {fname}")
         return
 
-    print(f"Rendering output for {fname}")
+    logger.info(f"Rendering output for {fname}")
 
     # Get the correct answers: find the indices of the token(s) labeled 1
     target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
