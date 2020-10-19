@@ -152,9 +152,7 @@ def wandb_bbox(t, score, class_id, pdf_page, min_height=10):
     """Prototype logging bounding boxes to W&B. Currently W&B assumes a fixed
     single size for each image logged, so this requires resizing all logged documents
     to see correct bounding boxes"""
-    dims = {k: Decimal(float(getattr(t, k))) for k in ["x0", "y0", "x1", "y1"]}
-    if min_height:
-        dims["y0"] = min(dims["y1"] - Decimal(min_height), dims["y0"])
+    dims = docrow_to_bbox(t, min_height)
 
     # reproject bounding box into pdf image
     x0, y0 = pdf_page._reproject((dims["x0"], dims["y0"]))
