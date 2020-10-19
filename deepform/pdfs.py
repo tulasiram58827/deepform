@@ -46,7 +46,7 @@ def download_from_remote(local_path):
         logger.error(f"Unable to retrieve {s3_key} from s3://{S3_BUCKET}")
         raise
 
-def log_pdfs(doc, doc_log, all_scores):
+def log_pdfs_with_wandb(doc, doc_log, all_scores, draw_wandb_boxes=False):
     fname = get_pdf_path(doc.slug)
     try:
         pdf = pdfplumber.open(fname)
@@ -58,7 +58,7 @@ def log_pdfs(doc, doc_log, all_scores):
 
     print(f"Rendering output for {fname}")
 
-    # Get the correct answers: find the indices of the token(s) labelled 1
+    # Get the correct answers: find the indices of the token(s) labeled 1
     target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
 
     class_ids_by_field = {"gross_amount" : 0, "flight_to" : 1, "flight_from" : 2, "contract_num" : 3, "advertiser" : 4}
@@ -69,23 +69,25 @@ def log_pdfs(doc, doc_log, all_scores):
     for pagenum, page in enumerate(pdf.pages):
 
         im = page.to_image(resolution=300)
-        #print("PAGE w h: ", page.width, " ",  page.height)
-        #print("ORIG SIZE: ", im.original.size)
-        #print("ROOT SIZE: ", im.root.width, " ", im.root.height)
-        
+        # helpful PDF vs. image infomation includes:
+        # - im.original.size: full size of original scanned PDF
+        # - im.root.width , im.root.height: scaled-down image/page (matches page.width/height 
+        # - im.scale: conversion from original to root
+ 
         # training data has 0..1 for page range (see create-training-data.py)
         num_pages = len(pdf.pages)
         if num_pages > 1:
             current_page = pagenum / float(num_pages - 1)
         else:
             current_page = 0.0
-        print("TOTAL PAGES: ", num_pages)
-        print("THIS PAGE: ", current_page)
+        
         # Draw guesses
         # loop over all predictions
         pred_bboxes = []
         true_bboxes = []
-        field_colors = {"gross_amount" : "magenta", "flight_to" : "red", "flight_from" : "green", "advertiser" : "blue", "contract_num" : "orange"} 
+        # colors for drawing prediction boxes
+        field_colors = {"gross_amount" : "magenta", "flight_to" : "blue", "flight_from" : "cyan", \
+                        "advertiser" : "red", "contract_num" : "orange"} 
         for i, score in enumerate(doc_log["score"]):
             rel_score = all_scores[:, i] / score
             page_match = np.isclose(doc.tokens["page"], current_page)
@@ -93,16 +95,14 @@ def log_pdfs(doc, doc_log, all_scores):
             fc = field_colors[curr_field]
             for token in doc.tokens[page_match & (rel_score > 0.9)].itertuples():
                 if rel_score[token.Index] == 1:
-                    w = 8
-                    #s = "magenta"
+                    w = 5
                 elif rel_score[token.Index] >= 0.75:
-                    w = 4
-                    #s = "red"
+                    w = 3
                 else:
                     w = 1
-                    #s = "red"
-                im.draw_rect(docrow_to_bbox(token), stroke="magenta", stroke_width=w, fill=None)
-                pred_bboxes.append(wandb_bbox(token, rel_score[token.Index], class_ids_by_field[curr_field], im, page.width, page.height))
+                im.draw_rect(docrow_to_bbox(token), stroke=fc, stroke_width=w, fill=None)
+                if draw_wandb_boxes:
+                    pred_bboxes.append(wandb_bbox(token, rel_score[token.Index], class_ids_by_field[curr_field], im))
             # Draw target tokens
             target_toks = [
                 doc.tokens.iloc[i]
@@ -110,23 +110,18 @@ def log_pdfs(doc, doc_log, all_scores):
                 if np.isclose(doc.tokens.iloc[i]["page"], current_page)
             ]
             rects = [docrow_to_bbox(t) for t in target_toks]
-            # TODO: what is the field for the target tokens?
-            true_bboxes.extend([wandb_bbox(t, 1, class_ids_by_field[curr_field], im, page.width, page.height) for t in target_toks]) 
-            #im.draw_rects(rects, stroke="yellow", stroke_width=4, fill=None)
-       
-        boxes = {"predictions" : { "box_data" : pred_bboxes, "class_labels" : class_id_to_label}, \
-                 "ground_truth" : {"box_data" : true_bboxes, "class_labels" : class_id_to_label}}
-        #page_images.append(wandb.Image(im.annotated, boxes=boxes, caption="page " + str(pagenum)))
-        page_images.append(wandb.Image(im.annotated, boxes=boxes, caption=fname.name + " p" + str(pagenum)))
+            im.draw_rects(rects, stroke="green", stroke_width=6, fill=None)
+            if draw_wandb_boxes:
+                 true_bboxes.extend([wandb_bbox(t, 1, class_ids_by_field[curr_field], im) for t in target_toks]) 
+      
+        if draw_wandb_boxes: 
+            boxes = {"predictions" : { "box_data" : pred_bboxes, "class_labels" : class_id_to_label}, \
+                     "ground_truth" : {"box_data" : true_bboxes, "class_labels" : class_id_to_label}}
+            page_images.append(wandb.Image(im.annotated, boxes=boxes, caption=fname.name))
+        else:
+            page_images.append(wandb.Image(im.annotated, caption=fname.name))
 
-        # get best matching score of any token in the training data
-    #match = doc.tokens[SINGLE_CLASS_PREDICTION].max()
-    #caption = (
-    #    f"{doc.slug} guessed:{predict_text} answer:{answer_text} match:{match:.2f}"
-    #)
-   # verdict = dollar_match(predict_text, answer_text)
     wandb.log({"docs": page_images}) 
-    #return verdict, caption, page_images
 
 def log_pdf(doc, score, scores, predict_text, answer_text):
     fname = get_pdf_path(doc.slug)

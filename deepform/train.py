@@ -11,8 +11,11 @@ import re
 from collections import defaultdict
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import wandb
+
+import tensorflow as tf
 from tensorflow import keras as K
 from wandb.keras import WandbCallback
 
@@ -21,7 +24,7 @@ from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
 from deepform.model import create_model, save_model, windowed_generator
-from deepform.pdfs import log_pdfs
+from deepform.pdfs import log_pdfs_with_wandb
 from deepform.util import config_desc, date_match, dollar_match, loose_match
 
 
@@ -34,8 +37,6 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
 
     accuracies = defaultdict(int)
 
-    pdf_doc_logs = []
-    # take the first page that has the answer & use the threshold 0.5
     for doc in sorted(dataset.sample(n_docs), key=lambda d: d.slug):
         slug = doc.slug
         answer_texts = doc.label_values
@@ -53,17 +54,18 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
 
         if print_results:
             print(f"file_id:{slug}")
-        
+       
+        # track all logging information for this document 
         doc_log = {}
         for log_key in ["pred_text", "true_text", "score", "field", "match"]:
             doc_log[log_key] = []
         for i, (field, answer_text) in enumerate(doc.label_values.items()):
             predict_text = predict_texts[i]
-            doc_log["pred_text"].append(predict_text)
             predict_score = predict_scores[i]
+            doc_log["true_text"].append(answer_text)
+            doc_log["pred_text"].append(predict_text)
             doc_log["score"].append(predict_score)
             doc_log["field"].append(field)
-            doc_log["true_text"].append(answer_text)
 
             match = (
                 (predict_score < config.predict_thresh and not answer_text)
@@ -81,17 +83,12 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
             doc_log["match"] = match
-            #pdf_doc_logs.append(doc_log)
  
             if print_results:
                 print(f"\t{prefix} {field}: {guessed}{correction}")
         if print_results and n_print > 0:
-            log_pdfs(doc, doc_log, all_scores)
+            log_pdfs_with_wandb(doc, doc_log, all_scores)
             n_print -= 1
-                    #verdict, caption, page_images = log_pdf(
-                    #    doc, predict_score, all_scores[:, i], predict_text, answer_text
-                    #)
-                    #n_print -= 1
     return pd.Series(accuracies) / n_docs
 
 
@@ -137,8 +134,8 @@ class DocAccCallback(K.callbacks.Callback):
 
         print(f"This epoch {self.logname}: {acc_str}")
         acc_dict = acc.to_dict()
-        print("acc dict: ", acc_dict)
-        # convert fields for benchmark logging
+        
+        # convert field names for benchmark logging
         wandb.log({"amount" : acc_dict["gross_amount"], "flight_to": acc_dict["flight_to"], \
                    "flight_from" : acc_dict["flight_from"], "contractid" : acc_dict["contract_num"], \
                    "advertiser" : acc_dict["advertiser"]})
@@ -150,6 +147,11 @@ def main(config):
     config.name = config_desc(config)
     if config.use_wandb:
         run.save()
+
+    # set random seed
+    tf.random.set_seed(config.random_seed)
+    # also set numpy seed to control train/val dataset split
+    np.random.seed(config.random_seed)
 
     print("Configuration:")
     print("{\n\t" + ",\n\t".join(f"'{k}': {v}" for k, v in config.items()) + "\n}")
@@ -194,6 +196,7 @@ if __name__ == "__main__":
     # First read in the initial configuration.
     os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
     run = wandb.init(
+        project=WANDB_PROJECT,
         job_type="train",
         allow_val_change=True,
     )

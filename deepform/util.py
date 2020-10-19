@@ -147,7 +147,7 @@ def docrow_to_bbox(t, min_height=10):
         dims["y0"] = min(dims["y1"] - Decimal(min_height), dims["y0"])
     return BoundingBox(**dims)
 
-def wandb_bbox(t, score, class_id, pdf_page, w, h, min_height=10):
+def wandb_bbox(t, score, class_id, pdf_page, min_height=10):
     """ Prototype logging bounding boxes to W&B. Currently W&B assumes a fixed
     single size for each image logged, so this requires resizing all logged documents
     to see correct bounding boxes  """
