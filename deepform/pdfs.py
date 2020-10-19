@@ -54,7 +54,7 @@ def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
     except Exception:
         # If the file's not there, that's fine -- we use available PDFs to
         # define what to see
-        print(f"Cannot open pdf {fname}")
+        logger.warn(f"Cannot open pdf {fname}")
         return
 
     print(f"Rendering output for {fname}")
