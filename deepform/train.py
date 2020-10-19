@@ -13,9 +13,8 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import wandb
-
 import tensorflow as tf
+import wandb
 from tensorflow import keras as K
 from wandb.keras import WandbCallback
 
@@ -24,7 +23,7 @@ from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
 from deepform.model import create_model, save_model, windowed_generator
-from deepform.pdfs import log_pdfs_with_wandb
+from deepform.pdfs import log_wandb_pdfs
 from deepform.util import config_desc, date_match, dollar_match, loose_match
 
 
@@ -54,8 +53,8 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
 
         if print_results:
             print(f"file_id:{slug}")
-       
-        # track all logging information for this document 
+
+        # track all logging information for this document
         doc_log = {}
         for log_key in ["pred_text", "true_text", "score", "field", "match"]:
             doc_log[log_key] = []
@@ -83,11 +82,11 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
             doc_log["match"] = match
- 
+
             if print_results:
                 print(f"\t{prefix} {field}: {guessed}{correction}")
         if print_results and n_print > 0:
-            log_pdfs_with_wandb(doc, doc_log, all_scores)
+            log_wandb_pdfs(doc, doc_log, all_scores)
             n_print -= 1
     return pd.Series(accuracies) / n_docs
 
@@ -134,13 +133,19 @@ class DocAccCallback(K.callbacks.Callback):
 
         print(f"This epoch {self.logname}: {acc_str}")
         acc_dict = acc.to_dict()
-        
+
         # convert field names for benchmark logging
-        wandb.log({"amount" : acc_dict["gross_amount"], "flight_to": acc_dict["flight_to"], \
-                   "flight_from" : acc_dict["flight_from"], "contractid" : acc_dict["contract_num"], \
-                   "advertiser" : acc_dict["advertiser"]})
+        wandb.log(
+            {
+                "amount": acc_dict["gross_amount"],
+                "flight_to": acc_dict["flight_to"],
+                "flight_from": acc_dict["flight_from"],
+                "contractid": acc_dict["contract_num"],
+                "advertiser": acc_dict["advertiser"],
+            }
+        )
         # compute average accuracy
-        wandb.log({"avg_acc" : self.mean_field_acc(acc_dict)})
+        wandb.log({"avg_acc": self.mean_field_acc(acc_dict)})
 
 
 def main(config):

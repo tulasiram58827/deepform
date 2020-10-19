@@ -46,7 +46,8 @@ def download_from_remote(local_path):
         logger.error(f"Unable to retrieve {s3_key} from s3://{S3_BUCKET}")
         raise
 
-def log_pdfs_with_wandb(doc, doc_log, all_scores, draw_wandb_boxes=False):
+
+def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
     fname = get_pdf_path(doc.slug)
     try:
         pdf = pdfplumber.open(fname)
@@ -61,7 +62,13 @@ def log_pdfs_with_wandb(doc, doc_log, all_scores, draw_wandb_boxes=False):
     # Get the correct answers: find the indices of the token(s) labeled 1
     target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
 
-    class_ids_by_field = {"gross_amount" : 0, "flight_to" : 1, "flight_from" : 2, "contract_num" : 3, "advertiser" : 4}
+    class_ids_by_field = {
+        "gross_amount": 0,
+        "flight_to": 1,
+        "flight_from": 2,
+        "contract_num": 3,
+        "advertiser": 4,
+    }
     class_id_to_label = {int(v): k for k, v in class_ids_by_field.items()}
 
     # Draw the machine output: get a score for each token
@@ -71,23 +78,29 @@ def log_pdfs_with_wandb(doc, doc_log, all_scores, draw_wandb_boxes=False):
         im = page.to_image(resolution=300)
         # helpful PDF vs. image infomation includes:
         # - im.original.size: full size of original scanned PDF
-        # - im.root.width , im.root.height: scaled-down image/page (matches page.width/height 
+        # - im.root.width , im.root.height: scaled-down image/page
+        #   (matches page.width, page.height)
         # - im.scale: conversion from original to root
- 
+
         # training data has 0..1 for page range (see create-training-data.py)
         num_pages = len(pdf.pages)
         if num_pages > 1:
             current_page = pagenum / float(num_pages - 1)
         else:
             current_page = 0.0
-        
+
         # Draw guesses
         # loop over all predictions
         pred_bboxes = []
         true_bboxes = []
         # colors for drawing prediction boxes
-        field_colors = {"gross_amount" : "magenta", "flight_to" : "blue", "flight_from" : "cyan", \
-                        "advertiser" : "red", "contract_num" : "orange"} 
+        field_colors = {
+            "gross_amount": "magenta",
+            "flight_to": "blue",
+            "flight_from": "cyan",
+            "advertiser": "red",
+            "contract_num": "orange",
+        }
         for i, score in enumerate(doc_log["score"]):
             rel_score = all_scores[:, i] / score
             page_match = np.isclose(doc.tokens["page"], current_page)
@@ -100,9 +113,17 @@ def log_pdfs_with_wandb(doc, doc_log, all_scores, draw_wandb_boxes=False):
                     w = 3
                 else:
                     w = 1
-                im.draw_rect(docrow_to_bbox(token), stroke=fc, stroke_width=w, fill=None)
-                if draw_wandb_boxes:
-                    pred_bboxes.append(wandb_bbox(token, rel_score[token.Index], class_ids_by_field[curr_field], im))
+                im.draw_rect(
+                    docrow_to_bbox(token), stroke=fc, stroke_width=w, fill=None
+                )
+                pred_bboxes.append(
+                    wandb_bbox(
+                        token,
+                        rel_score[token.Index],
+                        class_ids_by_field[curr_field],
+                        im,
+                    )
+                )
             # Draw target tokens
             target_toks = [
                 doc.tokens.iloc[i]
@@ -111,17 +132,32 @@ def log_pdfs_with_wandb(doc, doc_log, all_scores, draw_wandb_boxes=False):
             ]
             rects = [docrow_to_bbox(t) for t in target_toks]
             im.draw_rects(rects, stroke="green", stroke_width=6, fill=None)
-            if draw_wandb_boxes:
-                 true_bboxes.extend([wandb_bbox(t, 1, class_ids_by_field[curr_field], im) for t in target_toks]) 
-      
-        if draw_wandb_boxes: 
-            boxes = {"predictions" : { "box_data" : pred_bboxes, "class_labels" : class_id_to_label}, \
-                     "ground_truth" : {"box_data" : true_bboxes, "class_labels" : class_id_to_label}}
-            page_images.append(wandb.Image(im.annotated, boxes=boxes, caption=fname.name))
+            true_bboxes.extend(
+                [
+                    wandb_bbox(t, 1, class_ids_by_field[curr_field], im)
+                    for t in target_toks
+                ]
+            )
+
+        if draw_wandb_boxes:
+            boxes = {
+                "predictions": {
+                    "box_data": pred_bboxes,
+                    "class_labels": class_id_to_label,
+                },
+                "ground_truth": {
+                    "box_data": true_bboxes,
+                    "class_labels": class_id_to_label,
+                },
+            }
+            page_images.append(
+                wandb.Image(im.annotated, boxes=boxes, caption=fname.name)
+            )
         else:
             page_images.append(wandb.Image(im.annotated, caption=fname.name))
 
-    wandb.log({"docs": page_images}) 
+    wandb.log({"docs": page_images})
+
 
 def log_pdf(doc, score, scores, predict_text, answer_text):
     fname = get_pdf_path(doc.slug)

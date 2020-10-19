@@ -17,7 +17,6 @@ if __name__ == "__main__":
 
     run = wandb.init(
         project="model-download",
-        entity=WANDB_ENTITY,
         job_type="ps",
         allow_val_change=True,
     )
