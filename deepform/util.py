@@ -155,8 +155,8 @@ def wandb_bbox(t, score, class_id, pdf_page, min_height=10):
     dims = docrow_to_bbox(t, min_height)
 
     # reproject bounding box into pdf image
-    x0, y0 = pdf_page._reproject((dims["x0"], dims["y0"]))
-    x1, y1 = pdf_page._reproject((dims["x1"], dims["y1"]))
+    x0, y0 = pdf_page._reproject((dims.x0, dims.y0))
+    x1, y1 = pdf_page._reproject((dims.x1, dims.y1))
 
     box_data = {
         "position": {
