@@ -16,7 +16,7 @@ import wandb
 from tensorflow import keras as K
 from wandb.keras import WandbCallback
 
-from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_ENTITY, WANDB_PROJECT
+from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_PROJECT
 from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
@@ -92,7 +92,6 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
                     #    doc, predict_score, all_scores[:, i], predict_text, answer_text
                     #)
                     #n_print -= 1
-    print(accuracies)
     return pd.Series(accuracies) / n_docs
 
 
@@ -139,9 +138,12 @@ class DocAccCallback(K.callbacks.Callback):
         print(f"This epoch {self.logname}: {acc_str}")
         acc_dict = acc.to_dict()
         print("acc dict: ", acc_dict)
-        wandb.log(acc_dict)
+        # convert fields for benchmark logging
+        wandb.log({"amount" : acc_dict["gross_amount"], "flight_to": acc_dict["flight_to"], \
+                   "flight_from" : acc_dict["flight_from"], "contractid" : acc_dict["contract_num"], \
+                   "advertiser" : acc_dict["advertiser"]})
         # compute average accuracy
-        wandb.log({"mean_field_acc" : self.mean_field_acc(acc_dict)})
+        wandb.log({"avg_acc" : self.mean_field_acc(acc_dict)})
 
 
 def main(config):
@@ -189,12 +191,9 @@ def main(config):
 
 
 if __name__ == "__main__":
-    os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
     # First read in the initial configuration.
     os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
     run = wandb.init(
-        project=WANDB_PROJECT,
-        entity=WANDB_ENTITY,
         job_type="train",
         allow_val_change=True,
     )
@@ -208,7 +207,7 @@ if __name__ == "__main__":
         parser.add_argument(cli_flag, dest=key, type=type(value), default=value)
 
     args = parser.parse_args()
-    config.update(args) # allow_val_change=True)
+    config.update(args, allow_val_change=True)
 
     if not config.use_wandb:
         os.environ["WANDB_SILENT"] = "true"

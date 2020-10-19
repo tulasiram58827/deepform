@@ -147,7 +147,23 @@ def docrow_to_bbox(t, min_height=10):
         dims["y0"] = min(dims["y1"] - Decimal(min_height), dims["y0"])
     return BoundingBox(**dims)
 
+def wandb_bbox(t, score, class_id, pdf_page, w, h, min_height=10):
+    """ Prototype logging bounding boxes to W&B. Currently W&B assumes a fixed
+    single size for each image logged, so this requires resizing all logged documents
+    to see correct bounding boxes  """
+    dims = {k: Decimal(float(getattr(t, k))) for k in ["x0", "y0", "x1", "y1"]}
+    if min_height:
+        dims["y0"] = min(dims["y1"] - Decimal(min_height), dims["y0"])
 
+    # reproject bounding box into pdf image    
+    x0, y0 = pdf_page._reproject((dims["x0"], dims["y0"]))
+    x1, y1 = pdf_page._reproject((dims["x1"], dims["y1"]))
+
+    box_data = {"position" : { "minX" : float(x0), "minY" : float(y0), \
+               "maxX" : float(x1), "maxY": float(y1)}, \
+                "class_id" : class_id, "domain" : "pixel",  "scores" : {"score" : score}}
+    return box_data
+ 
 def config_desc(config):
     """A one-line text string describing the configuration of a run."""
     return (

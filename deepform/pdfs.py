@@ -12,7 +12,7 @@ from tqdm import tqdm
 from deepform.common import PDF_DIR, S3_BUCKET
 from deepform.document import SINGLE_CLASS_PREDICTION
 from deepform.logger import logger
-from deepform.util import docrow_to_bbox, dollar_match
+from deepform.util import docrow_to_bbox, dollar_match, wandb_bbox
 
 
 def get_pdf_path(slug):
@@ -61,26 +61,36 @@ def log_pdfs(doc, doc_log, all_scores):
     # Get the correct answers: find the indices of the token(s) labelled 1
     target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
 
+    class_ids_by_field = {"gross_amount" : 0, "flight_to" : 1, "flight_from" : 2, "contract_num" : 3, "advertiser" : 4}
+    class_id_to_label = {int(v): k for k, v in class_ids_by_field.items()}
+
     # Draw the machine output: get a score for each token
     page_images = []
     for pagenum, page in enumerate(pdf.pages):
-        im = page.to_image(resolution=300)
 
+        im = page.to_image(resolution=300)
+        #print("PAGE w h: ", page.width, " ",  page.height)
+        #print("ORIG SIZE: ", im.original.size)
+        #print("ROOT SIZE: ", im.root.width, " ", im.root.height)
+        
         # training data has 0..1 for page range (see create-training-data.py)
         num_pages = len(pdf.pages)
         if num_pages > 1:
             current_page = pagenum / float(num_pages - 1)
         else:
             current_page = 0.0
-
+        print("TOTAL PAGES: ", num_pages)
+        print("THIS PAGE: ", current_page)
         # Draw guesses
         # loop over all predictions
-        
+        pred_bboxes = []
+        true_bboxes = []
         field_colors = {"gross_amount" : "magenta", "flight_to" : "red", "flight_from" : "green", "advertiser" : "blue", "contract_num" : "orange"} 
         for i, score in enumerate(doc_log["score"]):
             rel_score = all_scores[:, i] / score
             page_match = np.isclose(doc.tokens["page"], current_page)
-            fc = field_colors[doc_log["field"][i]]
+            curr_field = doc_log["field"][i]
+            fc = field_colors[curr_field]
             for token in doc.tokens[page_match & (rel_score > 0.9)].itertuples():
                 if rel_score[token.Index] == 1:
                     w = 8
@@ -91,8 +101,8 @@ def log_pdfs(doc, doc_log, all_scores):
                 else:
                     w = 1
                     #s = "red"
-                im.draw_rect(docrow_to_bbox(token), stroke=fc, stroke_width=w, fill=None)
-
+                im.draw_rect(docrow_to_bbox(token), stroke="magenta", stroke_width=w, fill=None)
+                pred_bboxes.append(wandb_bbox(token, rel_score[token.Index], class_ids_by_field[curr_field], im, page.width, page.height))
             # Draw target tokens
             target_toks = [
                 doc.tokens.iloc[i]
@@ -100,9 +110,14 @@ def log_pdfs(doc, doc_log, all_scores):
                 if np.isclose(doc.tokens.iloc[i]["page"], current_page)
             ]
             rects = [docrow_to_bbox(t) for t in target_toks]
-            im.draw_rects(rects, stroke="yellow", stroke_width=4, fill=None)
-
-        page_images.append(wandb.Image(im.annotated, caption="page " + str(pagenum)))
+            # TODO: what is the field for the target tokens?
+            true_bboxes.extend([wandb_bbox(t, 1, class_ids_by_field[curr_field], im, page.width, page.height) for t in target_toks]) 
+            #im.draw_rects(rects, stroke="yellow", stroke_width=4, fill=None)
+       
+        boxes = {"predictions" : { "box_data" : pred_bboxes, "class_labels" : class_id_to_label}, \
+                 "ground_truth" : {"box_data" : true_bboxes, "class_labels" : class_id_to_label}}
+        #page_images.append(wandb.Image(im.annotated, boxes=boxes, caption="page " + str(pagenum)))
+        page_images.append(wandb.Image(im.annotated, boxes=boxes, caption=fname.name + " p" + str(pagenum)))
 
         # get best matching score of any token in the training data
     #match = doc.tokens[SINGLE_CLASS_PREDICTION].max()
