@@ -101,8 +101,7 @@ class DocAccCallback(K.callbacks.Callback):
         # return the average accuracy across all fields
         # advertiser, contract_num, flight_from, flight_to, gross_amount
         # we may want to adjust the relative weighting of these in the future
-        total_acc = sum(v for v in acc_dict.values())
-        return total_acc / 5.0
+        return sum(acc_dict.values()) / len(acc_dict)
 
     def on_epoch_end(self, epoch, logs):
         if epoch >= self.config.epochs - 1:
