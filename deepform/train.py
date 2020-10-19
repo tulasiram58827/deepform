@@ -141,7 +141,7 @@ class DocAccCallback(K.callbacks.Callback):
             }
         )
         # compute average accuracy
-        wandb.log({"avg_acc": self.mean_field_acc(acc_dict)})
+        wandb.log({"avg_acc": acc_dict.mean()})
 
 
 def main(config):
