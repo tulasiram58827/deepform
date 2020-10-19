@@ -55,9 +55,7 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             print(f"file_id:{slug}")
 
         # track all logging information for this document
-        doc_log = {}
-        for log_key in ["pred_text", "true_text", "score", "field", "match"]:
-            doc_log[log_key] = []
+        doc_log = defaultdict(list)
         for i, (field, answer_text) in enumerate(doc.label_values.items()):
             predict_text = predict_texts[i]
             predict_score = predict_scores[i]
