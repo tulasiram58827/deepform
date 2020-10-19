@@ -129,7 +129,6 @@ class DocAccCallback(K.callbacks.Callback):
         acc_str = re.sub(r"\s+", " ", acc.to_string())
 
         print(f"This epoch {self.logname}: {acc_str}")
-        acc_dict = acc.to_dict()
 
         # convert field names for benchmark logging
         wandb.log(
