@@ -2,23 +2,32 @@ import numpy as np
 import numpy.ma as ma
 
 
+# TODO: mask on tokens being on same page
 def document_edges(tokens, relative_tolerance=0.01):
     """"""
 
     # For now we compute alignment of text tokens based on their lower left corner.
     dX = np.subtract.outer(tokens["x0"].to_numpy(), tokens["x0"].to_numpy())
-
     dY = np.subtract.outer(tokens["y1"].to_numpy(), tokens["y1"].to_numpy())
+    page_mask = np.not_equal.outer(tokens["page"].to_numpy(), tokens["page"].to_numpy())
 
     D = np.abs(dX) + np.abs(dY)
     V_sim = dY / D
     H_sim = dX / D
 
     dX_h_aligned = ma.masked_where(
-        np.logical_not(np.isclose(np.abs(H_sim), 1, rtol=relative_tolerance)), dX
+        np.logical_or(
+            page_mask,
+            np.logical_not(np.isclose(np.abs(H_sim), 1, rtol=relative_tolerance)),
+        ),
+        dX,
     )
     dY_v_aligned = ma.masked_where(
-        np.logical_not(np.isclose(np.abs(V_sim), 1, rtol=relative_tolerance)), dY
+        np.logical_or(
+            page_mask,
+            np.logical_not(np.isclose(np.abs(V_sim), 1, rtol=relative_tolerance)),
+        ),
+        dY,
     )
 
     test_right = ma.masked_where(np.greater(dX_h_aligned, 0), dX_h_aligned)

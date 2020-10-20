@@ -11,19 +11,19 @@ from deepform.data.graph_geometry import document_edges
 # |  Y -|- Z  |
 # G --- H --- I
 
-A = {"token": "A", "x0": 1, "y1": 1}
-B = {"token": "B", "x0": 3, "y1": 1}
-C = {"token": "C", "x0": 5, "y1": 1}
-D = {"token": "D", "x0": 1, "y1": 3}
-E = {"token": "E", "x0": 3, "y1": 3}
-F = {"token": "F", "x0": 5, "y1": 3}
-G = {"token": "G", "x0": 1, "y1": 5}
-H = {"token": "H", "x0": 3, "y1": 5}
-I = {"token": "I", "x0": 5, "y1": 5}  # noqa: E741
-W = {"token": "W", "x0": 2, "y1": 2}
-X = {"token": "X", "x0": 4, "y1": 2}
-Y = {"token": "Y", "x0": 2, "y1": 4}
-Z = {"token": "Z", "x0": 4, "y1": 4}
+A = {"token": "A", "x0": 1, "y1": 1, "page": 0}
+B = {"token": "B", "x0": 3, "y1": 1, "page": 0}
+C = {"token": "C", "x0": 5, "y1": 1, "page": 0}
+D = {"token": "D", "x0": 1, "y1": 3, "page": 0}
+E = {"token": "E", "x0": 3, "y1": 3, "page": 0}
+F = {"token": "F", "x0": 5, "y1": 3, "page": 0}
+G = {"token": "G", "x0": 1, "y1": 5, "page": 0}
+H = {"token": "H", "x0": 3, "y1": 5, "page": 0}
+I = {"token": "I", "x0": 5, "y1": 5, "page": 0}  # noqa: E741
+W = {"token": "W", "x0": 2, "y1": 2, "page": 0}
+X = {"token": "X", "x0": 4, "y1": 2, "page": 0}
+Y = {"token": "Y", "x0": 2, "y1": 4, "page": 0}
+Z = {"token": "Z", "x0": 4, "y1": 4, "page": 0}
 
 tokens = pd.DataFrame.from_records([A, B, C, D, E, F, G, H, I, W, X, Y, Z])
 
@@ -70,3 +70,13 @@ def test_disconnected():
     disconnectedBottom = adjacency[0:9, 9:]
     assert (disconnectedRight == 0).all()
     assert (disconnectedBottom == 0).all()
+
+
+def test_different_pages():
+    B_pg_2 = B.copy()
+    B_pg_2["page"] = 1
+    tokens_pages = pd.DataFrame.from_records([A, B_pg_2, C])
+
+    adjacency = document_edges(tokens_pages)
+    assert adjacency[0, 1] == 0
+    assert adjacency[0, 2] == 1
