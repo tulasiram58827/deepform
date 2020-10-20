@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 
 import boto3
 import numpy as np
@@ -123,7 +124,8 @@ def render_tokenized_pdf(doc):
         return
 
     page_images = [
-        {"image": page.to_image(resolution=300), "rects": []} for page in pdf.pages
+        {"image": page.to_image(resolution=300), "rects": [], "lines": []}
+        for page in pdf.pages
     ]
 
     for token in doc.tokens.itertuples():
@@ -131,9 +133,23 @@ def render_tokenized_pdf(doc):
         if page_num < len(page_images):
             page_images[page_num]["rects"].append(docrow_to_bbox(token))
 
+    for indices in np.argwhere(doc.adjacency_matrix):
+        first_index, second_index = indices
+        if first_index != second_index:
+            first_token = doc.tokens.iloc[first_index]
+            second_token = doc.tokens.iloc[second_index]
+            page = int(first_token.page)
+            line = (
+                (Decimal(float(first_token.x0)), Decimal(float(first_token.y1))),
+                (Decimal(float(second_token.x0)), Decimal(float(second_token.y1))),
+            )
+            page_images[page_num]["lines"].append(line)
+
     for page in page_images:
-        image, rects = page["image"], page["rects"]
+        image, rects, lines = page["image"], page["rects"], page["lines"]
         image.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
+        print(f"first lines = {lines[:5]}")
+        image.draw_lines(lines, stroke="green", stroke_width=3)
 
     return [page["image"] for page in page_images]
 
