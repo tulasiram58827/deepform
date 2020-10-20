@@ -34,14 +34,21 @@ def tokenize_pdf(pdf_path):
         pages.append(df[["page", "x0", "y0", "x1", "y1", "token"]])
     if not pages:
         raise EOFError(f"No tokens found in {pdf_path}")
-    return pd.concat(pages)
+    return pd.concat(pages).reset_index(drop=True)
 
 
-def create_token_doc(pdf_path, token_dir=TOKEN_DIR):
+def create_token_doc(pdf_path, token_dir=TOKEN_DIR, overwrite=False):
     pdf_path, token_dir = Path(pdf_path), Path(token_dir)
     assert pdf_path.is_file() and pdf_path.suffix == ".pdf"
 
     slug = pdf_path.stem
+    token_path = token_dir / f"{slug}.parquet"
+    if token_path.is_file():
+        if overwrite:
+            logger.warning(f"Overwriting {token_path}")
+        else:
+            return
+
     try:
         tokens = tokenize_pdf(pdf_path)
     except EOFError:
@@ -52,7 +59,6 @@ def create_token_doc(pdf_path, token_dir=TOKEN_DIR):
         return
 
     token_dir.mkdir(parents=True, exist_ok=True)
-    token_path = token_dir / f"{slug}.parquet"
     tokens.to_parquet(token_path)
     return token_path
 
@@ -72,14 +78,14 @@ def pdf_paths(*paths):
             logger.warning(f"'{path}' is not a file or directory")
 
 
-def create_token_docs_from_pdfs(*paths, token_dir=TOKEN_DIR):
-    def tokenize(pdf_file):
-        return create_token_doc(pdf_file, token_dir=token_dir)
+def create_token_docs_from_pdfs(*paths, overwrite=False):
 
     with ThreadPoolExecutor() as executor:
         pdf_files = list(pdf_paths(*paths))
         print(f"Tokenizing {len(pdf_files):,} pdfs...")
-        results = list(tqdm(executor.map(tokenize, pdf_files), total=len(pdf_files)))
+        results = list(
+            tqdm(executor.map(create_token_doc, pdf_files), total=len(pdf_files))
+        )
 
     tokenized = [p for p in results if p]
     print(f"Tokenized {len(tokenized)} documents.")
@@ -122,19 +128,20 @@ def extract_doc(pdf_path, window_len):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "-f",
+        "--force",
+        type=bool,
+        default=False,
+        help="overwrite existing token files",
+    )
+    parser.add_argument(
         "pdf",
         nargs="?",
         default=PDF_DIR,
         help="pdf or directory of pdfs to process",
     )
-    parser.add_argument(
-        "tokendir",
-        nargs="?",
-        default=TOKEN_DIR,
-        help="path to directory of token files",
-    )
     parser.add_argument("--log-level", dest="log_level", default="ERROR")
     args = parser.parse_args()
     logger.setLevel(args.log_level.upper())
 
-    create_token_docs_from_pdfs(args.pdf, token_dir=args.tokendir)
+    create_token_docs_from_pdfs(args.pdf, overwrite=args.force)
