@@ -47,7 +47,7 @@ def download_from_remote(local_path):
         raise
 
 
-def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
+def log_wandb_pdfs(doc, doc_log, all_scores):
     fname = get_pdf_path(doc.slug)
     try:
         pdf = pdfplumber.open(fname)
@@ -60,6 +60,8 @@ def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
     logger.info(f"Rendering output for {fname}")
 
     # Get the correct answers: find the indices of the token(s) labeled 1
+    # TODO: i think this only returns the contract number ground truth right now
+    # maybe this should use label_values instead and match those to the tokens?
     target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
 
     class_ids_by_field = {
@@ -68,11 +70,11 @@ def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
         "flight_from": 2,
         "contract_num": 3,
         "advertiser": 4,
+        "ground_truth": 5,
     }
     class_id_to_label = {int(v): k for k, v in class_ids_by_field.items()}
 
     # Draw the machine output: get a score for each token
-    page_images = []
     for pagenum, page in enumerate(pdf.pages):
 
         im = page.to_image(resolution=300)
@@ -92,30 +94,12 @@ def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
         # Draw guesses
         # loop over all predictions
         pred_bboxes = []
-        true_bboxes = []
-        # colors for drawing prediction boxes
-        field_colors = {
-            "gross_amount": "magenta",
-            "flight_to": "blue",
-            "flight_from": "cyan",
-            "advertiser": "red",
-            "contract_num": "orange",
-        }
         for i, score in enumerate(doc_log["score"]):
             rel_score = all_scores[:, i] / score
             page_match = np.isclose(doc.tokens["page"], current_page)
             curr_field = doc_log["field"][i]
-            fc = field_colors[curr_field]
+            # TODO: remove this threshold and rely on wandb bbox dynamic threshold
             for token in doc.tokens[page_match & (rel_score > 0.9)].itertuples():
-                if rel_score[token.Index] == 1:
-                    w = 5
-                elif rel_score[token.Index] >= 0.75:
-                    w = 3
-                else:
-                    w = 1
-                im.draw_rect(
-                    docrow_to_bbox(token), stroke=fc, stroke_width=w, fill=None
-                )
                 pred_bboxes.append(
                     wandb_bbox(
                         token,
@@ -124,39 +108,25 @@ def log_wandb_pdfs(doc, doc_log, all_scores, draw_wandb_boxes=False):
                         im,
                     )
                 )
-            # Draw target tokens
-            target_toks = [
-                doc.tokens.iloc[i]
-                for i in target_idx
-                if np.isclose(doc.tokens.iloc[i]["page"], current_page)
-            ]
-            rects = [docrow_to_bbox(t) for t in target_toks]
-            im.draw_rects(rects, stroke="green", stroke_width=6, fill=None)
-            true_bboxes.extend(
-                [
-                    wandb_bbox(t, 1, class_ids_by_field[curr_field], im)
-                    for t in target_toks
-                ]
-            )
+        # Draw target tokens
+        target_toks = [
+            doc.tokens.iloc[j]
+            for j in target_idx
+            if np.isclose(doc.tokens.iloc[j]["page"], current_page)
+        ]
+        true_bboxes = [wandb_bbox(t, 1, 5, im) for t in target_toks]
 
-        if draw_wandb_boxes:
-            boxes = {
-                "predictions": {
-                    "box_data": pred_bboxes,
-                    "class_labels": class_id_to_label,
-                },
-                "ground_truth": {
-                    "box_data": true_bboxes,
-                    "class_labels": class_id_to_label,
-                },
-            }
-            page_images.append(
-                wandb.Image(im.annotated, boxes=boxes, caption=fname.name)
-            )
-        else:
-            page_images.append(wandb.Image(im.annotated, caption=fname.name))
-
-    wandb.log({"docs": page_images})
+        boxes = {
+            "predictions": {
+                "box_data": pred_bboxes,
+                "class_labels": class_id_to_label,
+            },
+            "ground_truth": {
+                "box_data": true_bboxes,
+                "class_labels": class_id_to_label,
+            },
+        }
+        wandb.log({fname.name: wandb.Image(im.annotated, boxes=boxes)})
 
 
 def log_pdf(doc, score, scores, predict_text, answer_text):

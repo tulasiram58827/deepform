@@ -79,12 +79,13 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             prefix = "✔️" if match else "❌"
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
-            doc_log["match"] = match
-
+            doc_log["match"].append(match)
             if print_results:
                 print(f"\t{prefix} {field}: {guessed}{correction}")
         if print_results and n_print > 0:
-            log_wandb_pdfs(doc, doc_log, all_scores)
+            log_wandb_pdfs(
+                doc, doc_log, all_scores
+            )  # TODO: get fields here more explicitly?
             n_print -= 1
     return pd.Series(accuracies) / n_docs
 
@@ -127,21 +128,21 @@ class DocAccCallback(K.callbacks.Callback):
             self.log_path / kind / f"{epoch:02d}",
         )
         acc_str = re.sub(r"\s+", " ", acc.to_string())
-
+        print("ACCURACY: ", acc)
         print(f"This epoch {self.logname}: {acc_str}")
 
         # convert field names for benchmark logging
         wandb.log(
             {
-                "amount": acc_dict["gross_amount"],
-                "flight_to": acc_dict["flight_to"],
-                "flight_from": acc_dict["flight_from"],
-                "contractid": acc_dict["contract_num"],
-                "advertiser": acc_dict["advertiser"],
+                "amount": acc["gross_amount"],
+                "flight_to": acc["flight_to"],
+                "flight_from": acc["flight_from"],
+                "contractid": acc["contract_num"],
+                "advertiser": acc["advertiser"],
             }
         )
         # compute average accuracy
-        wandb.log({"avg_acc": acc_dict.mean()})
+        wandb.log({"avg_acc": acc.mean()})
 
 
 def main(config):
