@@ -10,7 +10,7 @@ len_train:
 val_split:
   value: 0.2
 random_seed:
-  value: 42
+  value: 23
 
 # sweeps suggest these are reasonable hyperparameter defaults
 window_len:
