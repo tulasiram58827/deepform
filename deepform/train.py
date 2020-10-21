@@ -128,7 +128,6 @@ class DocAccCallback(K.callbacks.Callback):
             self.log_path / kind / f"{epoch:02d}",
         )
         acc_str = re.sub(r"\s+", " ", acc.to_string())
-        print("ACCURACY: ", acc)
         print(f"This epoch {self.logname}: {acc_str}")
 
         # convert field names for benchmark logging
