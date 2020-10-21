@@ -59,11 +59,8 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
 
     logger.info(f"Rendering output for {fname}")
 
-    # Get the correct answers: find the indices of the token(s) labeled 1
-    # TODO: i think this only returns the contract number ground truth right now
-    # maybe this should use label_values instead and match those to the tokens?
-    target_idx = [idx for (idx, val) in enumerate(doc.labels) if val == 1]
-
+    # map class labels for visualizing W&B bounding boxes
+    # TODO: use a type and separate out ground truth
     class_ids_by_field = {
         "gross_amount": 0,
         "flight_to": 1,
@@ -74,59 +71,51 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
     }
     class_id_to_label = {int(v): k for k, v in class_ids_by_field.items()}
 
-    # Draw the machine output: get a score for each token
-    for pagenum, page in enumerate(pdf.pages):
+    # visualize the first page of the document for which we have ground truth labels
+    pagenum = int(doc.tokens[doc.labels > 0].page.min())
+    page = pdf.pages[pagenum]
+    im = page.to_image(resolution=300)
 
-        im = page.to_image(resolution=300)
-        # helpful PDF vs. image infomation includes:
-        # - im.original.size: full size of original scanned PDF
-        # - im.root.width , im.root.height: scaled-down image/page
-        #   (matches page.width, page.height)
-        # - im.scale: conversion from original to root
+    # loop over all predictions
+    pred_bboxes = []
+    for i, score in enumerate(doc_log["score"]):
+        rel_score = all_scores[:, i] / score
+        page_match = doc.tokens.page == pagenum
+        curr_field = doc_log["field"][i]
 
-        # training data has 0..1 for page range (see create-training-data.py)
-        num_pages = len(pdf.pages)
-        if num_pages > 1:
-            current_page = pagenum / float(num_pages - 1)
-        else:
-            current_page = 0.0
-
-        # Draw guesses
-        # loop over all predictions
-        pred_bboxes = []
-        for i, score in enumerate(doc_log["score"]):
-            rel_score = all_scores[:, i] / score
-            page_match = np.isclose(doc.tokens["page"], current_page)
-            curr_field = doc_log["field"][i]
-            # TODO: remove this threshold and rely on wandb bbox dynamic threshold
-            for token in doc.tokens[page_match & (rel_score > 0.9)].itertuples():
-                pred_bboxes.append(
-                    wandb_bbox(
-                        token,
-                        rel_score[token.Index],
-                        class_ids_by_field[curr_field],
-                        im,
-                    )
+        # we could remove this threshold and rely entirely
+        # on the wandb bbox dynamic threshold
+        for token in doc.tokens[page_match & (rel_score > 0.5)].itertuples():
+            pred_bboxes.append(
+                wandb_bbox(
+                    token,
+                    rel_score[token.Index],
+                    class_ids_by_field[curr_field],
+                    im,
                 )
-        # Draw target tokens
-        target_toks = [
-            doc.tokens.iloc[j]
-            for j in target_idx
-            if np.isclose(doc.tokens.iloc[j]["page"], current_page)
-        ]
-        true_bboxes = [wandb_bbox(t, 1, 5, im) for t in target_toks]
+            )
+    # draw target tokens
+    target_toks = doc.tokens[(doc.labels > 0) & (doc.tokens.page == 0)]
+    true_bboxes = [wandb_bbox(t, 1, 5, im) for t in target_toks.itertuples()]
 
-        boxes = {
-            "predictions": {
-                "box_data": pred_bboxes,
-                "class_labels": class_id_to_label,
-            },
-            "ground_truth": {
-                "box_data": true_bboxes,
-                "class_labels": class_id_to_label,
-            },
+    boxes = {
+        "predictions": {
+            "box_data": pred_bboxes,
+            "class_labels": class_id_to_label,
+        },
+        "ground_truth": {
+            "box_data": true_bboxes,
+            "class_labels": class_id_to_label,
+        },
+    }
+    wandb.log(
+        {
+            "pdf/"
+            + fname.name
+            + ":"
+            + str(pagenum): wandb.Image(im.annotated, boxes=boxes)
         }
-        wandb.log({fname.name: wandb.Image(im.annotated, boxes=boxes)})
+    )
 
 
 def log_pdf(doc, score, scores, predict_text, answer_text):

@@ -168,6 +168,7 @@ def wandb_bbox(t, score, class_id, pdf_page, min_height=10):
         "class_id": class_id,
         "domain": "pixel",
         "scores": {"score": score},
+        "box_caption": "%.3f" % score,
     }
     return box_data
 
