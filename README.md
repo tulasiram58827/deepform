@@ -74,9 +74,9 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 ## Creating the training data
 
 ### Summary
-While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year.  The training data consists of some 20,000 of these PDFs, drawn from three different election years.  
+While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year, the training data consists of some 20,000 of these PDFs, drawn from three different election years.  
 
-The first components of the training data are three label manifests for these three election years (2012, 2014 and 2020), each of which contains a column of file IDs (called slugs) from that year and columns containing labels for each of the fields of interest for each document. The label manifests for 2012 and 2014 contain additional columns not used in this project.  
+The first components of the training data are three label manifests for these three election years (2012, 2014 and 2020), each of which is a .csv of .tsv.  Each label manifest contains a column of file IDs (called slugs) from that year and columns containing labels for each of the fields of interest for each document. The label manifests for 2012 and 2014 contain additional columns not used in this project.  
 
 The second component of the training data is a set of approximately 20,000 .parquet files, one for each OCR'd PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
 
@@ -143,7 +143,7 @@ To find the original PDFs, it is always possible to return to the [FCC website](
 
 ##### 2012 Training PDFs
 
-The original PDFs from the Free the Files Project are available on DocumentCloud or in this [folder](https://drive.google.com/drive/folders/1bsV4A-8A9B7KZkzdbsBnCGKLMZftV2fQ?usp=sharing). 
+90% of the original PDFs from the Free the Files Project are available on DocumentCloud and can be recovered by running 'curl' on url = 'https://documentcloud.org/documents/' + slug + '.pdf'.  These PDFs can also be found in [this folder](https://drive.google.com/drive/folders/1bsV4A-8A9B7KZkzdbsBnCGKLMZftV2fQ?usp=sharing). 
 
 ##### 2014 Training PDFs
 
@@ -158,8 +158,8 @@ The one thousand 2020 PDFs we hand labeled are available on Overview Docs as [th
 - A vocabulary of the tokens and their frequencies is created by running (if using docker) `make data/token_frequency.csv` or simply (if using poetry) `python -m deepform.data.create_vocabulary`. 
 - The three manifests should be present in the data folder.  If they are not, they can be downloaded from the three data sources as detailed above. 
 - The three individual manifests are combined into one by running (if using docker) `make data/3_year_manifest.csv` or (if using poetry) `python -m deepform.data.combine_manifests`. This combined manifest includes a column 'year' so that training data drawn from the three years can be balanced for various purposes.  
-- The tokenized data (the .parquet files) are prepared for model training by running (if using docker) `make data/doc_index.parquet` or simply (if using poetry) `python -m deepform.data.add_features data/3_year_manifest.csv`.  This script adds a column to the token file for each of the five target types.  This column is used to store the match percentage, for each token between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features.  
-- Having created the three-year manifest, downloaded the token files and run `make data/doc_index.parquet`, the model is ready to train.  
+- The tokenized data (the .parquet files) are prepared for model training by running (if using docker) `make data/doc_index.parquet` or simply (if using poetry) `python -m deepform.data.add_features data/3_year_manifest.csv`.  This script adds a column to the token file for each of the five target types.  This column is used to store the match percentage (for each token) between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features.  
+- Having created the three-year manifest, having downloaded the token files and having run `make data/doc_index.parquet`, the model is ready to train.  
 
 
 
