@@ -110,10 +110,7 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
     }
     wandb.log(
         {
-            "pdf/"
-            + fname.name
-            + ":"
-            + str(pagenum): wandb.Image(im.annotated, boxes=boxes)
+            f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)
         }
     )
 
