@@ -73,8 +73,12 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 
 ## Creating the training data
 
-All training was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) but labeled datasets for three different election years correspond to some 20,000 of these PDFs whose tokens have been extracted in this or previous projects. For comparison, there are some 100,000 PDFs associated with 2020 alone.   
-The 20,000 training PDFs from 2012, 2014 and 2020 were OCR'd and the resulting token and geometry data are matched with their labels via a file id called a 'slug'.  The total training data is a combination of the three label manifests for these three years and .parquet files of each OCR'd .pdf.  Each label manifest contains a column of document slugs and columns containing labels for each of the fields of interest.  The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
+### Summary
+While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year.  The training data consists of some 20,000 of these PDFs, drawn from three different election years.  
+
+The first components of the training data are three label manifests for these three election years (2012, 2014 and 2020), each of which contains a column of file IDs (called slugs) from that year and columns containing labels for each of the fields of interest for each document. The label manifests for 2012 and 2014 contain additional columns not used in this project.  
+
+The second component of the training data is a set of approximately 20,000 .parquet files, one for each OCR'd PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
 
 The .parquet files are formatted as "tokens plus geometry" like this:
 
@@ -93,21 +97,23 @@ page,x0,y0,x1,y1,token
 
 The document name (the `slug`) is a unique document identifier, ultimately from the source TSV. The page number runs from 0 to 1, and the bounding box is in the original PDF coordinate system. The actual token text is reproduced as `token`. 
 
-### 2012 Training Data
+The total training data for project deepform consists of three label manifests and approximately 20,000 .parquet files containing tokens. 
+
+### Acquiring the Three Label Manifests
+#### 2012 Label Manifest
 In 2012, ProPublica ran the Free The Files project (you can [read how it worked](https://www.niemanlab.org/2012/12/crowdsourcing-campaign-spending-what-propublica-learned-from-free-the-files/)) and hundreds of volunteers hand-entered information for over 17,000 of these forms. That data drove a bunch of campaign finance [coverage](https://www.propublica.org/series/free-the-files) and is now [available](https://www.propublica.org/datastore/dataset/free-the-files-filing-data) from their data store.
 
-- The label manifest for 2012 data was downloaded from Pro Publica and is located at `data/2012_manifest.tsv` (renamed from ftf-all-filings.tsv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [their website](https://www.propublica.org/datastore/dataset/free-the-files-filing-data). This file contains the crowdsourced answers for some of our targets (omitting flight dates) and the PDF url.
-- The original PDFs from the Free the Files Project are available on DocumentCloud and from the FCC database for 2012 or in this [folder](https://drive.google.com/drive/folders/1bsV4A-8A9B7KZkzdbsBnCGKLMZftV2fQ?usp=sharing).  But we have done the work of downloading these, OCR'd, Tokenized and saved them to an S3 bucket. Details below.  
+The label manifest for 2012 data was downloaded from Pro Publica and is located at `data/2012_manifest.tsv` (renamed from ftf-all-filings.tsv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [their website](https://www.propublica.org/datastore/dataset/free-the-files-filing-data). This file contains the crowdsourced answers for some of our targets (omitting flight dates) and the PDF url.
 
-### 2014 Training Data
+#### 2014 Label Manifest
 In 2014 Alex Byrnes [automated](https://github.com/alexbyrnes/FCC-Political-Ads) a similar extraction by hand-coding form layouts. This works for the dozen or so most common form types but ignores the hundreds of different PDF layouts in the long tail. 
 
-- The label manifest for 2014 data, acquired from Alex's Github is `data/2014_manifest.tsv`.  If the manifest is not present, it can be recovered from [his github](https://github.com/alexbyrnes/FCC-Political-Ads) (renamed from 2014-orders.tsv which is the filename it downloads as). This file contains the crowdsourced answers for some of our targets (omitting 'gross amount').
-- The original PDFs are available via the FCC website for 2014 but we have done the work of downloading these, OCR'd, Tokenized and saved them to an S3 bucket.  Details below. 
+The label manifest for 2014 data, acquired from Alex's Github is `data/2014_manifest.tsv`.  If the manifest is not present, it can be recovered from [his github](https://github.com/alexbyrnes/FCC-Political-Ads) (renamed from 2014-orders.tsv which is the filename it downloads as). This file contains the crowdsourced answers for some of our targets (omitting 'gross amount').
 
-### 2020 Training Data
 
-#### All 2020 PDFs
+#### 2020 Label Manifest
+
+##### All 2020 PDFs
 Pdfs for the 2020 political ads and associated metadata were uploaded to [Overview Docs](https://www.overviewdocs.com/documentsets/22569). To collect the pdfs, the file names were pulled from the [FCC API OPIF file search](https://publicfiles.fcc.gov/developer/) using the search terms: order, contract, invoice, and receipt. The search was run with filters for campaign year set to 2020 and source service code set to TV. 
 
 The FCC API search also returns the source service code (entity type, i.e. TV, cable), entity id, callsign, political file type (political ad or non-candidate issue ad), office type (presidential, senate, etc), nielsen dma rank (tv market area), network affiliation, and the time stamps for when the ad was created and last modified were pulled. These were added to the overview document set along with the search term, URL for the FCC download, and the date of the search.
@@ -120,21 +126,42 @@ For these .pdfs, the following steps were followed to produce training data:
  - Upload processed pdf to an S3 bucket and add URL to overview
  - Upload additional metadata on whether OCR was needed, the original angle of each page, and any errors that occurred during the OCR process.  
 
-#### A Subset for Training
+##### A Subset for Training
 [A sample of 1000 documents](https://www.overviewdocs.com/documentsets/22186) were randomly chosen for hand labeling as 2020 training data.  
 
-- The label manifest for 2020 data is `data/2020_manifest.tsv` (renamed from fcc-data-2020-sample-updated.csv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [this overview document set](https://www.overviewdocs.com/documentsets/22186). This file contains our manually entered answers for all of our five targets for the 1000 randomly chosen documents.
-- The original PDFs are available via the FCC website for 2020 with the above filters and on [Overview Docs](https://www.overviewdocs.com/documentsets/22186) but we have done the work of downloading these, OCR'd, Tokenized and saved them to an S3 bucket.  Details below. 
+The label manifest for 2020 data is `data/2020_manifest.tsv` (renamed from fcc-data-2020-sample-updated.csv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [this overview document set](https://www.overviewdocs.com/documentsets/22186). This file contains our manually entered answers for all of our five targets for the 1000 randomly chosen documents.
 
+
+### Acquiring the PDFs or Token Files
+#### Acquiring .parquet files directly
+
+The best way to run this project is to acquire the 20,000 .parquet files containing the tokens and geometry for each PDF in the training set. The token files are downloaded from our S3 bucket by running `make data/tokenized`.  These .parquet files are then located in the folder data/tokenized.  This is the easiest way to get this data.  
+
+#### Acquiring Raw PDFs
+
+To find the original PDFs, it is always possible to return to the [FCC website](https://publicfiles.fcc.gov/) and download them directly using the proper filters (search terms: order, contract, invoice, and receipt, filters:  campaign year = 2020, source service code = TV).  Each of the 2012, 2014 and 2020 data which was used by Pro Publica, by Alex Byrnes or by ourselves to create the three label manifests can be found in a differnt location also as follows: 
+
+##### 2012 Training PDFs
+
+The original PDFs from the Free the Files Project are available on DocumentCloud or in this [folder](https://drive.google.com/drive/folders/1bsV4A-8A9B7KZkzdbsBnCGKLMZftV2fQ?usp=sharing). 
+
+##### 2014 Training PDFs
+
+[Alex Byrnes github](https://github.com/alexbyrnes/FCC-Political-Ads) directs users back to the [FCC website](https://publicfiles.fcc.gov/) to get his data.  He does not host it separately.  
+
+##### 2020 Training PDFs
+
+The one thousand 2020 PDFs we hand labeled are available on Overview Docs as [this dataset](https://www.overviewdocs.com/documentsets/22186) 
 
 ### Combining and Peparing the Data 
 
-- The token files are downloaded from the S3 bucket by running `make data/tokenized`.  These .parquet files are then located in the folder data/tokenized.  
 - A vocabulary of the tokens and their frequencies is created by running (if using docker) `make data/token_frequency.csv` or simply (if using poetry) `python -m deepform.data.create_vocabulary`. 
 - The three manifests should be present in the data folder.  If they are not, they can be downloaded from the three data sources as detailed above. 
 - The three individual manifests are combined into one by running (if using docker) `make data/3_year_manifest.csv` or (if using poetry) `python -m deepform.data.combine_manifests`. This combined manifest includes a column 'year' so that training data drawn from the three years can be balanced for various purposes.  
-- The tokenized data is prepared for model training by running (if using docker) `make data/doc_index.parquet` or simply (if using poetry) `python -m deepform.data.add_features data/3_year_manifest.csv`.  This script adds a column to the token file for each of the five target types.  This column is used to store the match percentage, for each token between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features.  
+- The tokenized data (the .parquet files) are prepared for model training by running (if using docker) `make data/doc_index.parquet` or simply (if using poetry) `python -m deepform.data.add_features data/3_year_manifest.csv`.  This script adds a column to the token file for each of the five target types.  This column is used to store the match percentage, for each token between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features.  
 - Having created the three-year manifest, downloaded the token files and run `make data/doc_index.parquet`, the model is ready to train.  
+
+
 
 ## How the model works
 
