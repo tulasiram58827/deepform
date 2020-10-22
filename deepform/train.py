@@ -98,12 +98,6 @@ class DocAccCallback(K.callbacks.Callback):
         self.logname = logname
         self.log_path = LOG_DIR / "predictions" / run_timestamp
 
-    def mean_field_acc(self, acc_dict):
-        # return the average accuracy across all fields
-        # advertiser, contract_num, flight_from, flight_to, gross_amount
-        # we may want to adjust the relative weighting of these in the future
-        return sum(acc_dict.values()) / len(acc_dict)
-
     def on_epoch_end(self, epoch, logs):
         if epoch >= self.config.epochs - 1:
             # last epoch, sample from all docs and print inference results
