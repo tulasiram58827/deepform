@@ -11,17 +11,19 @@ import re
 from collections import defaultdict
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
+import tensorflow as tf
 import wandb
 from tensorflow import keras as K
 from wandb.keras import WandbCallback
 
-from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_ENTITY, WANDB_PROJECT
+from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_PROJECT
 from deepform.data.add_features import LABEL_COLS
 from deepform.document_store import DocumentStore
 from deepform.logger import logger
 from deepform.model import create_model, save_model, windowed_generator
-from deepform.pdfs import log_pdf
+from deepform.pdfs import log_wandb_pdfs
 from deepform.util import config_desc, date_match, dollar_match, loose_match
 
 
@@ -51,9 +53,17 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
 
         if print_results:
             print(f"file_id:{slug}")
+
+        # track all logging information for this document
+        doc_log = defaultdict(list)
         for i, (field, answer_text) in enumerate(doc.label_values.items()):
             predict_text = predict_texts[i]
             predict_score = predict_scores[i]
+            doc_log["true_text"].append(answer_text)
+            doc_log["pred_text"].append(predict_text)
+            doc_log["score"].append(predict_score)
+            doc_log["field"].append(field)
+
             match = (
                 (predict_score < config.predict_thresh and not answer_text)
                 or loose_match(predict_text, answer_text)
@@ -69,15 +79,14 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             prefix = "✔️" if match else "❌"
             guessed = f'guessed "{predict_text}" with score {predict_score:.3f}'
             correction = "" if match else f', was actually "{answer_text}"'
-
+            doc_log["match"].append(match)
             if print_results:
                 print(f"\t{prefix} {field}: {guessed}{correction}")
-                if not match and n_print > 0:
-                    log_pdf(
-                        doc, predict_score, all_scores[:, i], predict_text, answer_text
-                    )
-                    n_print -= 1
-
+        if print_results and n_print > 0:
+            log_wandb_pdfs(
+                doc, doc_log, all_scores
+            )  # TODO: get fields here more explicitly?
+            n_print -= 1
     return pd.Series(accuracies) / n_docs
 
 
@@ -113,15 +122,28 @@ class DocAccCallback(K.callbacks.Callback):
             self.log_path / kind / f"{epoch:02d}",
         )
         acc_str = re.sub(r"\s+", " ", acc.to_string())
-
         print(f"This epoch {self.logname}: {acc_str}")
-        wandb.log({self.logname: acc_str})
+
+        # convert field names for benchmark logging
+        wandb.log(
+            acc.rename(
+                {"gross_amount": "amount", "contract_num": "contractid"}
+            ).to_dict()
+        )
+
+        # compute average accuracy
+        wandb.log({"avg_acc": acc.mean(), "epoch": epoch})
 
 
 def main(config):
     config.name = config_desc(config)
     if config.use_wandb:
         run.save()
+
+    # set random seed
+    tf.random.set_seed(config.random_seed)
+    # also set numpy seed to control train/val dataset split
+    np.random.seed(config.random_seed)
 
     print("Configuration:")
     print("{\n\t" + ",\n\t".join(f"'{k}': {v}" for k, v in config.items()) + "\n}")
@@ -167,12 +189,10 @@ if __name__ == "__main__":
     os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
     run = wandb.init(
         project=WANDB_PROJECT,
-        entity=WANDB_ENTITY,
         job_type="train",
         allow_val_change=True,
     )
     config = run.config
-
     # Then override it with any parameters passed along the command line.
     parser = argparse.ArgumentParser()
 

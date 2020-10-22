@@ -4,8 +4,13 @@ len_train:
   dec: number of documents to use (training + validation)
   value: 15000
 
+# training dataset settings required for benchmark submissions
+# do not change these if you'd like a pure comparison to the
+# other benchmark submissions
 val_split:
   value: 0.2
+random_seed:
+  value: 23
 
 # sweeps suggest these are reasonable hyperparameter defaults
 window_len:

@@ -12,7 +12,7 @@ from tqdm import tqdm
 from deepform.common import PDF_DIR, S3_BUCKET
 from deepform.document import SINGLE_CLASS_PREDICTION
 from deepform.logger import logger
-from deepform.util import docrow_to_bbox, dollar_match
+from deepform.util import docrow_to_bbox, dollar_match, wandb_bbox
 
 
 def get_pdf_path(slug):
@@ -45,6 +45,70 @@ def download_from_remote(local_path):
     except ClientError:
         logger.error(f"Unable to retrieve {s3_key} from s3://{S3_BUCKET}")
         raise
+
+
+def log_wandb_pdfs(doc, doc_log, all_scores):
+    fname = get_pdf_path(doc.slug)
+    try:
+        pdf = pdfplumber.open(fname)
+    except Exception:
+        # If the file's not there, that's fine -- we use available PDFs to
+        # define what to see
+        logger.warn(f"Cannot open pdf {fname}")
+        return
+
+    logger.info(f"Rendering output for {fname}")
+
+    # map class labels for visualizing W&B bounding boxes
+    # TODO: use a type and separate out ground truth
+    class_ids_by_field = {
+        "gross_amount": 0,
+        "flight_to": 1,
+        "flight_from": 2,
+        "contract_num": 3,
+        "advertiser": 4,
+        "ground_truth": 5,
+    }
+    class_id_to_label = {int(v): k for k, v in class_ids_by_field.items()}
+
+    # visualize the first page of the document for which we have ground truth labels
+    pagenum = int(doc.tokens[doc.labels > 0].page.min())
+    page = pdf.pages[pagenum]
+    im = page.to_image(resolution=300)
+
+    # loop over all predictions
+    pred_bboxes = []
+    for i, score in enumerate(doc_log["score"]):
+        rel_score = all_scores[:, i] / score
+        page_match = doc.tokens.page == pagenum
+        curr_field = doc_log["field"][i]
+
+        # we could remove this threshold and rely entirely
+        # on the wandb bbox dynamic threshold
+        for token in doc.tokens[page_match & (rel_score > 0.5)].itertuples():
+            pred_bboxes.append(
+                wandb_bbox(
+                    token,
+                    score,
+                    class_ids_by_field[curr_field],
+                    im,
+                )
+            )
+    # draw target tokens
+    target_toks = doc.tokens[(doc.labels > 0) & (doc.tokens.page == 0)]
+    true_bboxes = [wandb_bbox(t, 1, 5, im) for t in target_toks.itertuples()]
+
+    boxes = {
+        "predictions": {
+            "box_data": pred_bboxes,
+            "class_labels": class_id_to_label,
+        },
+        "ground_truth": {
+            "box_data": true_bboxes,
+            "class_labels": class_id_to_label,
+        },
+    }
+    wandb.log({f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)})
 
 
 def log_pdf(doc, score, scores, predict_text, answer_text):
@@ -105,8 +169,5 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
     caption = (
         f"{doc.slug} guessed:{predict_text} answer:{answer_text} match:{match:.2f}"
     )
-    if dollar_match(predict_text, answer_text):
-        caption = "CORRECT " + caption
-    else:
-        caption = "INCORRECT " + caption
-    wandb.log({caption: page_images})
+    verdict = dollar_match(predict_text, answer_text)
+    return verdict, caption, page_images
