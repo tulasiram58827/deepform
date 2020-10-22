@@ -5,7 +5,7 @@
 
 Deepform is a project to extract information from TV and cable political advertising disclosure forms using deep learning.  [This public data, maintained by the FCC](https://publicfiles.fcc.gov/), is valuable to journalists but locked in PDFs.  Our goal is to provide the dataset for NLP/AI researchers and to make our method available to future data scientists working in this field.  Past projects have managed to produce similar data sets only with great manual effort or in a way which addresses only common form types, ignoring the tail of hundreds of rare form types.  This work uses models that are able to generalize over form types and "learn" how to find five fields:
 
-- Contract number (multipe documents can have the same number as a contract for future air dates is revised)
+- Contract number (multiple documents can have the same number as a contract for future air dates is revised)
 - Advertiser name (offen the name of a political [comittee](https://www.fec.gov/data/browse-data/?tab=committees) but not always)
 - Start and end air dates dates (often known as "flight dates")
 - Total amount paid for the ads
