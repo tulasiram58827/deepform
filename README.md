@@ -129,7 +129,7 @@ For these .pdfs, the following steps were followed to produce training data:
 ##### A Subset for Training
 [A sample of 1000 documents](https://www.overviewdocs.com/documentsets/22186) were randomly chosen for hand labeling as 2020 training data.  
 
-The label manifest for 2020 data is `data/2020_manifest.tsv` (renamed from fcc-data-2020-sample-updated.csv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [this overview document set](https://www.overviewdocs.com/documentsets/22186). This file contains our manually entered answers for all of our five targets for the 1000 randomly chosen documents.
+The label manifest for 2020 data is `data/2020_manifest.csv` (renamed from fcc-data-2020-sample-updated.csv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [this overview document set](https://www.overviewdocs.com/documentsets/22186). This file contains our manually entered answers for all of our five targets for the 1000 randomly chosen documents.
 
 
 ### Acquiring the PDFs or Token Files
@@ -143,15 +143,21 @@ To find the original PDFs, it is always possible to return to the [FCC website](
 
 ##### 2012 Training PDFs
 
-90% of the original PDFs from the Free the Files Project are available on DocumentCloud and can be recovered by running 'curl' on url = 'https://documentcloud.org/documents/' + slug + '.pdf'.  These PDFs can also be found in [this folder](https://drive.google.com/drive/folders/1bsV4A-8A9B7KZkzdbsBnCGKLMZftV2fQ?usp=sharing). 
+90% of the original PDFs from the Free the Files Project are available on DocumentCloud and can be recovered by running 'curl' on url = 'https://documentcloud.org/documents/' + slug + '.pdf'.  These PDFs can also be found in [this folder](https://drive.google.com/drive/folders/1bsV4A-8A9B7KZkzdbsBnCGKLMZftV2fQ?usp=sharing). If you download PDFs from one of these sources, locate them in the folder `data/PDFs`
 
 ##### 2014 Training PDFs
 
-[Alex Byrnes github](https://github.com/alexbyrnes/FCC-Political-Ads) directs users back to the [FCC website](https://publicfiles.fcc.gov/) to get his data.  He does not host it separately.  
+[Alex Byrnes github](https://github.com/alexbyrnes/FCC-Political-Ads) directs users back to the [FCC website](https://publicfiles.fcc.gov/) to get his data.  He does not host it separately.   The PDFs are also available in [this google drive folder](https://drive.google.com/drive/folders/1aTuir0Y6WdD0P3SRUazo_82u7o8SnVf2).  If you download PDFs from one of these sources, locate them in the folder `data/PDFs`
 
 ##### 2020 Training PDFs
 
 The one thousand 2020 PDFs we hand labeled are available on Overview Docs as [this dataset](https://www.overviewdocs.com/documentsets/22186) 
+
+These PDFs can also be acquired from the FCC database by running `make data/pdfs`.  This command will locate all the PDFs associated with 2020 training data in the folder `data/PDFs`
+
+#### Converting Raw PDFs to .parquet files
+
+If you have a set of PDF files located in `data/PDFs` and would like to tokenize those PDFs then you can run a line in the make file which is typically commented out.  Uncomment ` make data/tokenized: data/pdfs` and the associated lines below and comment out the other make command called data/tokenized.  This command will create the folder data/tokenized containing the .parquet files of tokens and geometry corresponding to each of the PDFs in `data/PDFs`.  
 
 ### Combining and Peparing the Data 
 
@@ -161,7 +167,7 @@ The one thousand 2020 PDFs we hand labeled are available on Overview Docs as [th
 - The tokenized data (the .parquet files) are prepared for model training by running (if using docker) `make data/doc_index.parquet` or simply (if using poetry) `python -m deepform.data.add_features data/3_year_manifest.csv`.  This script adds a column to the token file for each of the five target types.  This column is used to store the match percentage (for each token) between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features.  
 - Having created the three-year manifest, having downloaded the token files and having run `make data/doc_index.parquet`, the model is ready to train.  
 
-
+N.B. As it is written currently, the model only trains on the one thousand documents of 2020 data.  
 
 ## How the model works
 
