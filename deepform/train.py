@@ -126,16 +126,13 @@ class DocAccCallback(K.callbacks.Callback):
 
         # convert field names for benchmark logging
         wandb.log(
-            {
-                "amount": acc["gross_amount"],
-                "flight_to": acc["flight_to"],
-                "flight_from": acc["flight_from"],
-                "contractid": acc["contract_num"],
-                "advertiser": acc["advertiser"],
-            }
+            acc.rename(
+                {"gross_amount": "amount", "contract_num": "contractid"}
+            ).to_dict()
         )
+
         # compute average accuracy
-        wandb.log({"avg_acc": acc.mean()})
+        wandb.log({"avg_acc": acc.mean(), "epoch": epoch})
 
 
 def main(config):

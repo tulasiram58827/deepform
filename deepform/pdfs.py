@@ -89,7 +89,7 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
             pred_bboxes.append(
                 wandb_bbox(
                     token,
-                    rel_score[token.Index],
+                    score,
                     class_ids_by_field[curr_field],
                     im,
                 )
@@ -108,11 +108,7 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
             "class_labels": class_id_to_label,
         },
     }
-    wandb.log(
-        {
-            f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)
-        }
-    )
+    wandb.log({f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)})
 
 
 def log_pdf(doc, score, scores, predict_text, answer_text):
