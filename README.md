@@ -3,7 +3,7 @@
 ![Python build](https://github.com/project-deepform/deepform/workflows/Python%20application/badge.svg)
 ![Docker image](https://github.com/project-deepform/deepform/workflows/Docker%20Image%20CI/badge.svg)
 
-Deepform is a project to extract information from TV and cable political advertising disclosure forms using deep learning.  [This public data, maintained by the FCC](https://publicfiles.fcc.gov/), is valuable to journalists but locked in PDFs.  Our goal is to provide the dataset for NLP/AI researchers and to make our method available to future data scientists working in this field.  Past projects have managed to produce similar data sets only with great manual effort or in a way which addresses only common form types, ignoring the tail of hundreds of rare form types.  This work uses models that are able to generalize over form types and "learn" how to find five fields:
+Deepform is a project to extract information from TV and cable political advertising disclosure forms using deep learning.  [This public data, maintained by the FCC](https://publicfiles.fcc.gov/), is valuable to journalists but locked in PDFs.  Our goal is to provide the 2020 dataset for NLP/AI researchers and to make our method available to future data scientists working in this field.  Past projects have managed to produce similar data sets only with great manual effort or by addressing only the most common form types, ignoring the tail of hundreds of rare form types.  This work uses deep learning models that are able to generalize over form types and "learn" how to find five fields:
 
 - Contract number (multiple documents can have the same number as a contract for future air dates is revised)
 - Advertiser name (offen the name of a political [comittee](https://www.fec.gov/data/browse-data/?tab=committees) but not always)
@@ -14,45 +14,35 @@ The [initial attempt to use deep learning for this work](https://github.com/jstr
 
 ## Why?
 
-TV stations are required to disclose their sale of political advertising, but there is no requirement that this disclosure is machine readable. Every election, tens of thousands of PDFs are posted to the FCC Public File, available at [https://publicfiles.fcc.gov/](https://publicfiles.fcc.gov/) in hundreds of different formats.
+This project is timely and relevant for a variety of reasons, some of them pertaining to this particular dataset and others to the method we are following.  
 
-Past projects have used [volunteer labor](https://www.niemanlab.org/2012/12/crowdsourcing-campaign-spending-what-propublica-learned-from-free-the-files/) or [hand-coded form layouts](https://github.com/alexbyrnes/FCC-Political-Ads) to produce usable datasets.  Project Deepform replicates this data extraction using modern deep learning techniques.  This is desirable not only to produce a usable dataset in the context of the 2020 election (and all future US elections) but also as an open source springboard for future form extraction projects.  
+Election trasnsparency is an increasingly important component of the US electoral process and making this data available to journalists at low or no cost is key to that transparency.  As the data is archived in tens of thousands of non-machine-readable PDF files in hundreds of different formats, it is beyond the capacity of journalistic entities to extract it by hand in a useful way.  The data is available for purchase from private entities but we interviewed journalists who mentioned that the data comes with a price tag of $100K or more _per newspaper_ which wishes to use it.  
+
+Past projects have used [volunteer labor](https://www.niemanlab.org/2012/12/crowdsourcing-campaign-spending-what-propublica-learned-from-free-the-files/) or [hand-coded form layouts](https://github.com/alexbyrnes/FCC-Political-Ads) to produce usable datasets.  Project Deepform replicates this data extraction using modern deep learning techniques.  This is desirable because we are not only positioned to produce a usable dataset in the context of the 2020 election but the method will be available to our team and other data science teams in the run up to all future US elections to produce similar datasets in the future.  
+
+For our own purposes as members of the investigative data science community, Project Deepform functions as an open source springboard for future form extraction projects.  Projects of this kind are becoming widely popular as the tools have improved within the past half decade to make this work possible.  The general problem is known as "knowledge base construction" in the research community, and the current state of the art is achieved by multimodal systems such as [Fonduer](https://fonduer.readthedocs.io/en/latest/). A group at Google released [a paper](https://research.google/pubs/pub49122/) earlier in 2020 which describes a related process, Google also supports [Document Cloud AI](https://levelup.gitconnected.com/how-to-parse-forms-using-google-cloud-document-ai-68ad47e1c0ed) and others have made progress using [graph convolutional networks](https://link.springer.com/chapter/10.1007/978-3-030-21074-8_12).  
+
+Finally, we have prepared this project dataset and its goals as a [benchmark project on Weights and Biases](https://wandb.ai/deepform/political-ad-extraction/benchmark).  Here, other data scientists are encouraged to improve on the baseline success rates we have attained.  
 
 
 ## Running
 
-The project is primarily intended to be run with [Docker](https://www.docker.com/products/docker-desktop), which eases issues with Python virtual environments, but it can also be run locally -- this is easiest to do with [Poetry](https://python-poetry.org/).
+The project is primarily intended to be run with [Docker](https://www.docker.com/products/docker-desktop), which eases issues with Python virtual environments, but it can also be run locally -- this is easiest to do with [Poetry](https://python-poetry.org/).  
 
 ### Docker
 
 To use Docker, you'll have to be running the daemon, which you can find and install from https://www.docker.com/products/docker-desktop. Fortunately, that's _all_ you need.
 
-The project has a `Makefile` that covers most of the things you might want to do with the project. Run:
-
-- `make test` to run all the unit tests for the project
-- `make docker-shell` will spin up a container and drop you into a bash shell after mounting the `deepform` folder of code so that commands that you run there reflect the code as you are editing it.
-- `make train` runs `deepform/train.py` with the default configuration. If it needs to it will download and preprocess the data it needs to train on.
-- `make test-train` runs the same training loop on the same data, but with very strongly reduced settings (just a few documents for a few steps) so that it can be used to check that it actually works.
-- `make sweep` runs a hyperparameter sweep with Weights & Biases, using the configuration in `sweep.yaml`
-
-Some of these commands require an `.env` file located at the root of the project directory. It will need to have an API key you can get from your [settings](https://app.wandb.ai/settings) page at Weights & Biases. The file should look like:
-
-```
-WANDB_API_KEY=MY_API_KEY
-```
-
-If you don't want to use Weights & Biases, you can turn it off by setting `use_wandb=0`. You'll still need an `.env` file, but it can be empty.
+The project has a `Makefile` that covers most of the things you might want to do with the project. 
 
 #### Caveats
 
-Training the model brings all the training data into memory and is quite RAM-intensive. On my 16GB machine, Docker will terminate with an out-of-memory exception if I train on more than approximately 6000 documents. If I train locally, it uses all my ram but will keep going after it exceeds it, slowing down and paging as it needs to. So with Docker, either train on a subset of the data (use a smaller `len_train`) or use a machine with a lot of RAM.
+Training the model brings all the training data into memory and is quite RAM-intensive. On my 16GB machine, Docker will terminate with an out-of-memory exception if I train on more than approximately 6000 documents. If I train locally, it uses all my ram but will keep going after it exceeds it, slowing down and paging as it needs to. So with Docker, either train on a subset of the data (use a smaller `len_train` in config-defaults.yaml) or use a machine with a lot of RAM.
 
 
 ### Poetry - dependency management and running locally
 
-Deepform manages its dependencies with `Poetry`, which you only need if you want to run it locally or alter the project dependencies.
-
-You can install Poetry using any of the methods listed in their [documentation](https://python-poetry.org/docs/#installation).
+Deepform manages its dependencies with `Poetry`, which you only need if you want to run it locally or alter the project dependencies.  You can install Poetry using any of the methods listed in their [documentation](https://python-poetry.org/docs/#installation).  
 
 If you want to run Deepform locally:
 
@@ -76,7 +66,7 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 ### Summary
 While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year, the training data consists of some 20,000 of these PDFs, drawn from three different election years.  
 
-The first components of the training data are three label manifests for these three election years (2012, 2014 and 2020), each of which is a .csv of .tsv.  Each label manifest contains a column of file IDs (called slugs) from that year and columns containing labels for each of the fields of interest for each document. The label manifests for 2012 and 2014 contain additional columns not used in this project.  
+The first components of the training data are three label manifests for these three election years (2012, 2014 and 2020), each of which is a .csv or .tsv.  Each label manifest contains a column of file IDs (called slugs) from that year and columns containing labels for each of the fields of interest for each document. The label manifests for 2012 and 2014 contain additional columns not used in this project.  
 
 The second component of the training data is a set of approximately 20,000 .parquet files, one for each OCR'd PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
 
@@ -127,7 +117,7 @@ For these .pdfs, the following steps were followed to produce training data:
  - Upload additional metadata on whether OCR was needed, the original angle of each page, and any errors that occurred during the OCR process.  
 
 ##### A Subset for Training
-[A sample of 1000 documents](https://www.overviewdocs.com/documentsets/22186) were randomly chosen for hand labeling as 2020 training data.  
+[A sample of 1000 documents](https://www.overviewdocs.com/documentsets/22186) was randomly chosen for hand labeling as 2020 training data.  
 
 The label manifest for 2020 data is `data/2020_manifest.csv` (renamed from fcc-data-2020-sample-updated.csv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [this overview document set](https://www.overviewdocs.com/documentsets/22186). This file contains our manually entered answers for all of our five targets for the 1000 randomly chosen documents.
 
@@ -169,12 +159,29 @@ If you have a set of PDF files located in `data/PDFs` and would like to tokenize
 
 N.B. As it is written currently, the model only trains on the one thousand documents of 2020 data.  
 
-## How the model works
+## Training 
+### How the model works
 
 The easiest fields are contract number and total. This uses a fully connected three-layer network trained on a window of tokens from the data, typically 20-30 tokens. Each token is hashed to an integer mod 1000, then converted to 1-hot representation and embedded into 64 dimensions. This embedding is combined with geometry information (bounding box and page number) and also some hand-crafted "hint" features, such as whether the token matches a regular expression for dollar amounts. For details, see [the talk](https://www.youtube.com/watch?v=uNN59kJQ7CA).
 
 We also incorporate custom "hint" features. For example, the total extractor uses an "amount" feature that is the log of the token value, if the token string is a number.
 
+
+### Running in Docker
+
+- `make test` to run all the unit tests for the project
+- `make docker-shell` will spin up a container and drop you into a bash shell after mounting the `deepform` folder of code so that commands that you run there reflect the code as you are editing it.
+- `make train` runs `deepform/train.py` with the default configuration. **If it needs to it will download and preprocess the data it needs to train on.**
+- `make test-train` runs the same training loop on the same data, but with very strongly reduced settings (just a few documents for a few steps) so that it can be used to check that it actually works.
+- `make sweep` runs a hyperparameter sweep with Weights & Biases, using the configuration in `sweep.yaml`
+
+Some of these commands require an `.env` file located at the root of the project directory. 
+
+If you don't want to use Weights & Biases, you can turn it off by setting `use_wandb=0`. You'll still need an `.env` file, but it can be empty.
+
+### Running Locally using Poetry
+
+For each of the above commands, rather than running a make command which automatically runs in docker, run the python command which is a subsection of the make command.  I.e. rather than running `,make test-train`, run `python -um deepform.train --len-train=100 --steps-per-epoch=3 --epochs=2 --log-level=DEBUG --use-wandb=0 --use-data-cache=0 --save-model=0 --doc-acc-max-sample-size=20 --render-results-size=3`
 
 ## Code quality and pre-commit hooks
 
@@ -184,10 +191,10 @@ To make this as painless as possible, `.pre-commit-config.yaml` contains rules f
 
 GitHub runs a "python build" Action whenever you push new code to a branch (configured in [python-app.yml](https://github.com/project-deepform/deepform/blob/master/.github/workflows/python-app.yml)). This also runs `black`, `flake8`, and `pytest`, so it's best to just make sure things pass locally before pushing to GitHub.
 
-## A research data set
+## Looking Forward
 
 This is a difficult data set that is very relevant to journalism, and improvements in technique will be immediately useful to campaign finance reporting.
 
-The general problem is known as "knowledge base construction" in the research community, and the current state of the art is achieved by multimodal systems such as [Fonduer](https://fonduer.readthedocs.io/en/latest/).
+Our next steps include additional pre-processing steps to rotate improperly scanned documents and to identify and separate concatenated documents.  The default parameter settings we are using are fairly good but can likely be improved further.  We have leads on additional training data which was produced via hand-labeling in a couple of different related projects which we are hoping to incorporate.  We believe there is potential here for some automated training data creation.  Finally, we are not at present making use of the available 2012 and 2014 training data and these daya may be able to dramatically improve model accuracy.  
 
 We would love to hear from you! Contact jstray on [twitter](https://twitter.com/jonathanstray) or through his [blog](http://jonathanstray.com).
