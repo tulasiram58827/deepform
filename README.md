@@ -33,11 +33,11 @@ The project is primarily intended to be run with [Docker](https://www.docker.com
 
 To use Docker, you'll have to be running the daemon, which you can find and install from https://www.docker.com/products/docker-desktop. Fortunately, that's _all_ you need.
 
-The project has a `Makefile` that covers most of the things you might want to do with the project. 
+The project has a `Makefile` that covers most of the things you might want to do with the project. To get started, simply
 
-#### Caveats
+`make train`
 
-Training the model brings all the training data into memory and is quite RAM-intensive. On my 16GB machine, Docker will terminate with an out-of-memory exception if I train on more than approximately 6000 documents. If I train locally, it uses all my ram but will keep going after it exceeds it, slowing down and paging as it needs to. So with Docker, either train on a subset of the data (use a smaller `len_train` in config-defaults.yaml) or use a machine with a lot of RAM.
+or see below for other commands.
 
 
 ### Poetry - dependency management and running locally
@@ -90,7 +90,7 @@ page,x0,y0,x1,y1,token
 The document name (the `slug`) is a unique document identifier, ultimately from the source TSV. The page number runs from 0 to 1, and the bounding box is in the original PDF coordinate system. The actual token text is reproduced as `token`. 
 
 
-### Acquiring the Label Manifests
+### Where the labels come from
 #### 2012 Label Manifest
 In 2012, ProPublica ran the Free The Files project (you can [read how it worked](https://www.niemanlab.org/2012/12/crowdsourcing-campaign-spending-what-propublica-learned-from-free-the-files/)) and hundreds of volunteers hand-entered information for over 17,000 of these forms. That data drove a bunch of campaign finance [coverage](https://www.propublica.org/series/free-the-files) and is now [available](https://www.propublica.org/datastore/dataset/free-the-files-filing-data) from their data store.
 
@@ -123,7 +123,7 @@ For these .pdfs, the following steps were followed to produce training data:
 The label manifest for 2020 data is `data/2020_manifest.csv` (renamed from fcc-data-2020-sample-updated.csv which is the filename it downloads as).  If the manifest is not present, it can be recovered from [this overview document set](https://www.overviewdocs.com/documentsets/22186). This file contains our manually entered answers for all of our five targets for the 1000 randomly chosen documents.
 
 
-### Acquiring the PDFs or Token Files
+### Where the PDFs and token files come from
 #### Acquiring .parquet files directly
 
 The best way to run this project is to acquire the 20,000 .parquet files containing the tokens and geometry for each PDF in the training set. The token files are downloaded from our S3 bucket by running `make data/tokenized`.  These .parquet files are then located in the folder data/tokenized.  This is the easiest way to get this data.  
