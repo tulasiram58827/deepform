@@ -64,15 +64,13 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 ## Training Data
 ### Getting the Training Data 
 
-To 'quick start' this project, simply run `make data/tokenized`.  This will download some 20,000 .parquet files from an S3 bucket and will locate them in the folder data/tokenized.  These files contain the tokens from the PDFs used in training.  The labels for these PDFs are already in the repo in data/3_year_manifest.csv.  When the .parquet files are finished downloading you are ready to start training.  For much more information and detail on how the training data was created and how to recover any of it if it is lost, read below. 
+Running `make data/tokenized` will download some 20,000 .parquet files from an S3 bucket to the folder data/tokenized.  These files contain the tokens from the PDFs used in training, including labels on the tokens for each field type. 
 
-### Creating the training data
-### Summary
-While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year, the training data consists of some 20,000 of these PDFs, drawn from three different election years.  
+All the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year. The training data consists of some 20,000 of these PDFs, drawn from three different election years (2012, 2014 and 2020) according to available labels (see below).
 
-The first components of the training data are three label manifests for these three election years (2012, 2014 and 2020), each of which is a .csv or .tsv.  Each label manifest contains a column of file IDs (called slugs) from that year and columns containing labels for each of the fields of interest for each document. The label manifests for 2012 and 2014 contain additional columns not used in this project.  
+There are three "label manifests" for these three election years, each of which is a .csv or .tsv containing a column of file IDs (called slugs) and columns containing labels for each of the fields of interest for each document. Each year has a slighty different set of extracted fields, including additional extracted fields not used by the model in this repo. All three years are combined in data/3_year_manifest.csv. 
 
-The second component of the training data is a set of approximately 20,000 .parquet files, one for each OCR'd PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
+The orignal PDFs were OCRd, tokenized, and turned into a set of  20,000 .parquet files, one for each  PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
 
 The .parquet files are formatted as "tokens plus geometry" like this:
 
@@ -91,9 +89,8 @@ page,x0,y0,x1,y1,token
 
 The document name (the `slug`) is a unique document identifier, ultimately from the source TSV. The page number runs from 0 to 1, and the bounding box is in the original PDF coordinate system. The actual token text is reproduced as `token`. 
 
-The total training data for project deepform consists of three label manifests and approximately 20,000 .parquet files containing tokens. 
 
-### Acquiring the Three Label Manifests
+### Acquiring the Label Manifests
 #### 2012 Label Manifest
 In 2012, ProPublica ran the Free The Files project (you can [read how it worked](https://www.niemanlab.org/2012/12/crowdsourcing-campaign-spending-what-propublica-learned-from-free-the-files/)) and hundreds of volunteers hand-entered information for over 17,000 of these forms. That data drove a bunch of campaign finance [coverage](https://www.propublica.org/series/free-the-files) and is now [available](https://www.propublica.org/datastore/dataset/free-the-files-filing-data) from their data store.
 
