@@ -64,15 +64,15 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 ## Training Data
 ### Getting the Training Data 
 
-As mentioned above, running `make train` will acquire you all the additional data you need and will train the model.  The total training data for this project consists of three label manifests (discussed below in detail) and 20,000 . parquet files containing the tokens and geometry from the PDFs used in training.  Running `make train` will automatically run, in sequence, a series of commands which acquire, restructure and label the training data.  These commands can alternatively be run manually, in sequence.
+Running `make train` will acquire all the data you need _and_ will train the model.  The total training data for this project consists of three label manifests (discussed below in detail) and 20,000 . parquet files containing the tokens and geometry from the PDFs used in training.  Running `make train` will automatically run, in sequence, a series of commands which acquire, restructure and label the training data.  These commands can alternatively be run manually, in sequence.
 
-1. `data/tokenized` downloads _all_ the unlabeled .parquet files (training and test) from an S3 bucket to the folder data/tokenized.  
+1. `make data/tokenized` downloads _all_ the unlabeled .parquet files (training and test) from an S3 bucket to the folder data/tokenized.  
 
-2. `data/token_frequency.csv` constructs a vocabulary of tokens from all these .parquet files. 
+2. `make data/token_frequency.csv` constructs a vocabulary of tokens from all these .parquet files. 
 
-3. `data/3_year_manifest.csv` combines three label manifests from three different election years (2012, 2014 and 2020) into a single manifest and includes a column 'year' to differentiate between the three years' data.  
+3. `make data/3_year_manifest.csv` combines three label manifests from three different election years (2012, 2014 and 2020) into a single manifest (`data/3_year_manifest.csv`) and includes a column 'year' to differentiate between the three years' data.  
 
-4. `data/doc_index.parquet` will utilize the unlabeled .parquet files in the folder data/tokenized along with 3_year_manifest.csv (already in the repo) to generate a new set of _labeled_ .parquet files containing the token and geometry along with a new columns for each of the five target types. This column is used to store the match percentage (for each token) between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features. 
+4. `make data/doc_index.parquet` will utilize the unlabeled .parquet files in the folder data/tokenized along with 3_year_manifest.csv (already in the repo) to generate a new set of _labeled_ .parquet files in the folder data/training containing the token and geometry along with a new columns for each of the five target types. This column is used to store the match percentage (for each token) between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features. 
 
 ### Form of the training data
 All the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year. The _training_ data consists of some 20,000 of these PDFs, drawn from three different election years (2012, 2014 and 2020) according to available labels (see below), and three label manifests.
@@ -98,7 +98,7 @@ The document name (the `slug`) is a unique document identifier, ultimately from 
 
 These .parquet files still lack labels however.  Lables are provided in three "label manifests" for these three election years (2012, 2014 and 2020), each of which is a .csv or .tsv containing a column of file IDs (called slugs) and columns containing labels for each of the fields of interest for each document. Each year has a slighty different set of extracted fields, sometimes including additional extracted fields not used by the model in this repo. All three manifests are combined in data/3_year_manifest.csv. All three label manifests and the combined manifest are available in the `data` folder.  If they are not present they can be recovered from various sources as detailed below.  
 
-Using the labels in 3_year_manifest.csv, the 20,000 unlabeled token files are replaced with labeled token files which have the following form.  These are the training data as provided to the model.
+Using the labels in 3_year_manifest.csv and the 20,000 unlabeled token files, labeled token files are produced in the folder `data/training` which have the following form.  These are the training data as provided to the model.
 
 ```
 page	x0	y0	x1	y1	token	contract_num	advertiser	flight_from	flight_to	gross_amount	tok_id	length	digitness	is_dollar	log_amount	label
