@@ -25,7 +25,7 @@ For our own purposes as members of the investigative data science community, Pro
 Finally, we have prepared this project dataset and its goals as a [benchmark project on Weights and Biases](https://wandb.ai/deepform/political-ad-extraction/benchmark).  Here, other data scientists are encouraged to improve on the baseline success rates we have attained.  
 
 
-## Running
+## Setting up the Environment
 
 The project is primarily intended to be run with [Docker](https://www.docker.com/products/docker-desktop), which eases issues with Python virtual environments, but it can also be run locally -- this is easiest to do with [Poetry](https://python-poetry.org/).  
 
@@ -61,8 +61,12 @@ To update project dependencies:
 These three commands alter `pyproject.toml` and `poetry.lock`, which should be committed to git. Using them ensures that our project has reproducible builds.
 
 
-## Creating the training data
+## Training Data
+### Getting the Training Data 
 
+To 'quick start' this project, simply run `make data/tokenized`.  This will download some 20,000 .parquet files from an S3 bucket and will locate them in the folder data/tokenized.  These files contain the tokens from the PDFs used in training.  The labels for these PDFs are already in the repo in data/3_year_manifest.  When the .parquet files are finished downloading you are ready to start training.  For much more information and detail on how the training data was created and how to recover any of it if it is lost, read below. 
+
+###Creating the training data
 ### Summary
 While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year, the training data consists of some 20,000 of these PDFs, drawn from three different election years.  
 
