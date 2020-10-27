@@ -33,7 +33,7 @@ The project is primarily intended to be run with [Docker](https://www.docker.com
 
 To use Docker, you'll have to be running the daemon, which you can find and install from https://www.docker.com/products/docker-desktop. Fortunately, that's _all_ you need.
 
-The project has a `Makefile` that covers most of the things you might want to do with the project. To get started, simply
+The project has a `Makefile` that covers most of the things you might want to do with the project. To get started, simply run
 
 `make train`
 
@@ -64,13 +64,20 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 ## Training Data
 ### Getting the Training Data 
 
-Running `make data/tokenized` will download some 20,000 .parquet files from an S3 bucket to the folder data/tokenized.  These files contain the tokens from the PDFs used in training, including labels on the tokens for each field type. 
+As mentioned above, running `make train` will acquire you all the additional data you need and will train the model.  The total training data for this project consists of three label manifests (discussed below in detail) and 20,000 . parquet files containing the tokens and geometry from the PDFs used in training.  Running `make train` will automatically run, in sequence, a series of commands which acquire, restructure and label the training data.  These commands can alternatively be run manually, in sequence.
 
-All the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year. The training data consists of some 20,000 of these PDFs, drawn from three different election years (2012, 2014 and 2020) according to available labels (see below).
+1. `data/tokenized` downloads _all_ the unlabeled .parquet files (training and test) from an S3 bucket to the folder data/tokenized.  
 
-There are three "label manifests" for these three election years, each of which is a .csv or .tsv containing a column of file IDs (called slugs) and columns containing labels for each of the fields of interest for each document. Each year has a slighty different set of extracted fields, including additional extracted fields not used by the model in this repo. All three years are combined in data/3_year_manifest.csv. 
+2. `data/token_frequency.csv` constructs a vocabulary of tokens from all these .parquet files. 
 
-The orignal PDFs were OCRd, tokenized, and turned into a set of  20,000 .parquet files, one for each  PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
+3. `data/3_year_manifest.csv` combines three label manifests from three different election years (2012, 2014 and 2020) into a single manifest and includes a column 'year' to differentiate between the three years' data.  
+
+4. `data/doc_index.parquet` will utilize the unlabeled .parquet files in the folder data/tokenized along with 3_year_manifest.csv (already in the repo) to generate a new set of _labeled_ .parquet files containing the token and geometry along with a new columns for each of the five target types. This column is used to store the match percentage (for each token) between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features. 
+
+### Form of the training data
+All the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year. The _training_ data consists of some 20,000 of these PDFs, drawn from three different election years (2012, 2014 and 2020) according to available labels (see below), and three label manifests.
+
+The orignal PDFs were OCRd, tokenized, and turned into .parquet files, one for each PDF. The .parquet files are each named with the document slug and contain all of that document's tokens and their geometry on the page.  Geometry is given in 1/100ths of an inch.  
 
 The .parquet files are formatted as "tokens plus geometry" like this:
 
@@ -89,6 +96,32 @@ page,x0,y0,x1,y1,token
 
 The document name (the `slug`) is a unique document identifier, ultimately from the source TSV. The page number runs from 0 to 1, and the bounding box is in the original PDF coordinate system. The actual token text is reproduced as `token`. 
 
+These .parquet files still lack labels however.  Lables are provided in three "label manifests" for these three election years (2012, 2014 and 2020), each of which is a .csv or .tsv containing a column of file IDs (called slugs) and columns containing labels for each of the fields of interest for each document. Each year has a slighty different set of extracted fields, sometimes including additional extracted fields not used by the model in this repo. All three manifests are combined in data/3_year_manifest.csv. All three label manifests and the combined manifest are available in the `data` folder.  If they are not present they can be recovered from various sources as detailed below.  
+
+Using the labels in 3_year_manifest.csv, the 20,000 unlabeled token files are replaced with labeled token files which have the following form.  These are the training data as provided to the model.
+
+```
+page	x0	y0	x1	y1	token	contract_num	advertiser	flight_from	flight_to	gross_amount	tok_id	length	digitness	is_dollar	log_amount	label
+0	18	17.963	48.232	26.899	Contract	0	0.27	0	0	0	53	8	0	0	0	0
+0	50.456	17.963	89.584	26.899	Agreement	0	0.33	0	0	0	115	9	0	0	0	0
+0	474.001	17.963	505.137	26.899	1/15/20	0.4	0.26	0.38	0.88	0.22	0	8	0.75	0	0	0
+0	414.781	65.213	445.917	74.149	1475302	1	0.26	0.4	0.27	0.67	0	7	1	1	14.204374	1
+0	495.842	65.213	550.978	74.149	WOC12348242	0.33	0.26	0.32	0.32	0.19	663	11	0.72727275	0	0	0
+0	183.909	90.193	298.949	101.363	www.gray.tv/advertising	0	0.58	0.06	0.06	0.06	1796	23	0	0	0	0
+0	309.002	90.923	326.786	99.859	Mike	0	1	0	0	0	664	4	0	0	0	2
+0	329.01	90.923	371.234	99.859	Bloomberg	0	1	0	0	0	821	9	0	0	0	2
+0	373.458	90.923	393.474	99.859	2020,	0.33	1	0.31	0.46	0.67	0	5	0.8	0	0	2
+0	395.698	90.923	407.258	99.859	Inc	0	1	0	0	0	166	3	0	0	0	2
+0	491.041	90.683	522.177	99.619	12/31/19	0.27	0.74	0.88	0.5	0.22	0	8	0.75	0	0	0
+0	308.251	103.463	338.483	112.399	Contract	0	0.24	0	0	0	53	8	0	0	0	0
+0	340.707	103.463	361.603	112.399	Dates	0	0.23	0	0	0	18	5	0	0	0	0
+0	407.251	103.463	438.371	112.399	Estimate	0	0.26	0	0	0	23	8	0	0	0	0
+0	308.251	115.703	339.387	124.639	12/30/19	0.4	0.26	1	0.5	0.33	0	8	0.75	0	0	3
+0	346.499	115.703	377.635	124.639	1/12/20	0.27	0.21	0.5	1	0.22	0	8	0.75	0	0	4
+...
+```
+
+N.B. As it is written currently, the model only trains on the one thousand documents of 2020 data.  
 
 ### Where the labels come from
 #### 2012 Label Manifest
@@ -126,7 +159,7 @@ The label manifest for 2020 data is `data/2020_manifest.csv` (renamed from fcc-d
 ### Where the PDFs and token files come from
 #### Acquiring .parquet files directly
 
-The best way to run this project is to acquire the 20,000 .parquet files containing the tokens and geometry for each PDF in the training set. The token files are downloaded from our S3 bucket by running `make data/tokenized`.  These .parquet files are then located in the folder data/tokenized.  This is the easiest way to get this data.  
+The best way to run this project is to acquire the 20,000 .parquet files containing the tokens and geometry for each PDF in the training set. The token files are downloaded from our S3 bucket by running `make data/tokenized`.  If you run `make train`, the program will automatically run `make data/tokenized` as this is a dependency for `make train`.  These .parquet files are then located in the folder data/tokenized.  This is the easiest way to get this data.  
 
 #### Acquiring Raw PDFs
 
@@ -149,16 +182,6 @@ These PDFs can also be acquired from the FCC database by running `make data/pdfs
 #### Converting Raw PDFs to .parquet files
 
 If you have a set of PDF files located in `data/PDFs` and would like to tokenize those PDFs then you can run a line in the make file which is typically commented out.  Uncomment ` make data/tokenized: data/pdfs` and the associated lines below and comment out the other make command called data/tokenized.  This command will create the folder data/tokenized containing the .parquet files of tokens and geometry corresponding to each of the PDFs in `data/PDFs`.  
-
-### Combining and Peparing the Data 
-
-- A vocabulary of the tokens and their frequencies is created by running (if using docker) `make data/token_frequency.csv` or simply (if using poetry) `python -m deepform.data.create_vocabulary`. 
-- The three manifests should be present in the data folder.  If they are not, they can be downloaded from the three data sources as detailed above. 
-- The three individual manifests are combined into one by running (if using docker) `make data/3_year_manifest.csv` or (if using poetry) `python -m deepform.data.combine_manifests`. This combined manifest includes a column 'year' so that training data drawn from the three years can be balanced for various purposes.  
-- The tokenized data (the .parquet files) are prepared for model training by running (if using docker) `make data/doc_index.parquet` or simply (if using poetry) `python -m deepform.data.add_features data/3_year_manifest.csv`.  This script adds a column to the token file for each of the five target types.  This column is used to store the match percentage (for each token) between that token and the target in question.  Some targets are more than one token in length so in these cases, this new column contains the likelihood that each token is a member of the target token string.  This script also computes other relevant features such as whether the token is a date or a dollar amount which are fed into the model as additional features.  
-- Having created the three-year manifest, having downloaded the token files and having run `make data/doc_index.parquet`, the model is ready to train.  
-
-N.B. As it is written currently, the model only trains on the one thousand documents of 2020 data.  
 
 ## Training 
 ### How the model works
