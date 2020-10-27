@@ -64,9 +64,9 @@ These three commands alter `pyproject.toml` and `poetry.lock`, which should be c
 ## Training Data
 ### Getting the Training Data 
 
-To 'quick start' this project, simply run `make data/tokenized`.  This will download some 20,000 .parquet files from an S3 bucket and will locate them in the folder data/tokenized.  These files contain the tokens from the PDFs used in training.  The labels for these PDFs are already in the repo in data/3_year_manifest.  When the .parquet files are finished downloading you are ready to start training.  For much more information and detail on how the training data was created and how to recover any of it if it is lost, read below. 
+To 'quick start' this project, simply run `make data/tokenized`.  This will download some 20,000 .parquet files from an S3 bucket and will locate them in the folder data/tokenized.  These files contain the tokens from the PDFs used in training.  The labels for these PDFs are already in the repo in data/3_year_manifest.csv.  When the .parquet files are finished downloading you are ready to start training.  For much more information and detail on how the training data was created and how to recover any of it if it is lost, read below. 
 
-###Creating the training data
+### Creating the training data
 ### Summary
 While all the data (training and test) for this project was originally raw PDFs, downloadable from the [FCC website](https://publicfiles.fcc.gov/) with up to 100,000 PDFs per election year, the training data consists of some 20,000 of these PDFs, drawn from three different election years.  
 
