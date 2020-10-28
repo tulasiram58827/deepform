@@ -110,4 +110,4 @@ def cache_master_key(config):
         "amt{use_amount}_"
         "pad{pad_windows}_"
         "len{window_len}"
-    ).format(**config)
+    ).format(**vars(config))

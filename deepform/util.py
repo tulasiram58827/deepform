@@ -185,7 +185,7 @@ def config_desc(config):
         "voc:{vocab_size} "
         "emb:{vocab_embed_size} "
         "steps:{steps_per_epoch}"
-    ).format(**config)
+    ).format(**vars(config))
 
 
 def sample(items, n=None, seed=None):

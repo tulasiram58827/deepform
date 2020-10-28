@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import wandb
+import yaml
 from tensorflow import keras as K
-from wandb.keras import WandbCallback
 
 from deepform.common import LOG_DIR, TRAINING_INDEX, WANDB_PROJECT
 from deepform.data.add_features import LABEL_COLS
@@ -25,6 +25,8 @@ from deepform.logger import logger
 from deepform.model import create_model, save_model, windowed_generator
 from deepform.pdfs import log_wandb_pdfs
 from deepform.util import config_desc, date_match, dollar_match, loose_match
+
+CONFIG_FILE = "config-defaults.yaml"
 
 
 # Calculate accuracy of answer extraction over num_to_test docs, print
@@ -82,10 +84,8 @@ def compute_accuracy(model, config, dataset, num_to_test, print_results, log_pat
             doc_log["match"].append(match)
             if print_results:
                 print(f"\t{prefix} {field}: {guessed}{correction}")
-        if print_results and n_print > 0:
-            log_wandb_pdfs(
-                doc, doc_log, all_scores
-            )  # TODO: get fields here more explicitly?
+        if print_results and config.use_wandb and n_print > 0:
+            log_wandb_pdfs(doc, doc_log, all_scores)
             n_print -= 1
     return pd.Series(accuracies) / n_docs
 
@@ -124,14 +124,17 @@ class DocAccCallback(K.callbacks.Callback):
         acc_str = re.sub(r"\s+", " ", acc.to_string())
         print(f"This epoch {self.logname}: {acc_str}")
 
-        # convert field names for benchmark logging
+        if not self.config.use_wandb:
+            return
+
+        # Convert field names for benchmark logging.
         wandb.log(
             acc.rename(
                 {"gross_amount": "amount", "contract_num": "contractid"}
             ).to_dict()
         )
 
-        # compute average accuracy
+        # Compute average accuracy.
         wandb.log({"avg_acc": acc.mean(), "epoch": epoch})
 
 
@@ -145,8 +148,7 @@ def main(config):
     # also set numpy seed to control train/val dataset split
     np.random.seed(config.random_seed)
 
-    print("Configuration:")
-    print("{\n\t" + ",\n\t".join(f"'{k}': {v}" for k, v in config.items()) + "\n}")
+    print(f"Configuration: {config}")
 
     run_ts = datetime.now().isoformat(timespec="seconds").replace(":", "")
 
@@ -160,7 +162,7 @@ def main(config):
     model = create_model(config)
     print(model.summary())
 
-    callbacks = [WandbCallback()] if config.use_wandb else []
+    callbacks = [wandb.keras.WandbCallback()] if config.use_wandb else []
     callbacks.append(K.callbacks.LambdaCallback(on_epoch_end=lambda *args: print()))
     callbacks.append(DocAccCallback(config, run_ts, training_set, "doc_train_acc"))
     callbacks.append(DocAccCallback(config, run_ts, validation_set, "doc_val_acc"))
@@ -174,41 +176,41 @@ def main(config):
 
     if config.save_model:
         model_filepath = save_model(model, config)
-        alias = model_filepath.name
-        artifact = wandb.Artifact(
-            "deepform-model", type="model", metadata={"name": alias}
-        )
-        artifact.add_dir(
-            str(model_filepath)
-        )  # TODO: check that this is necessary? What does wandb api expect here?
-        run.log_artifact(artifact, aliases=["latest", alias])
+        if config.use_wandb:
+            alias = model_filepath.name
+            artifact = wandb.Artifact(
+                "deepform-model", type="model", metadata={"name": alias}
+            )
+            artifact.add_dir(
+                str(model_filepath)
+            )  # TODO: check that this is necessary? What does wandb api expect here?
+            run.log_artifact(artifact, aliases=["latest", alias])
 
 
 if __name__ == "__main__":
-    # First read in the initial configuration.
-    os.environ["WANDB_CONFIG_PATHS"] = "config-defaults.yaml"
-    run = wandb.init(
-        project=WANDB_PROJECT,
-        job_type="train",
-        allow_val_change=True,
-    )
-    config = run.config
-    # Then override it with any parameters passed along the command line.
+    # Read in configuration defaults.
+    with open(CONFIG_FILE, "r") as stream:
+        config_defaults = yaml.safe_load(stream)
+
+    # Parse CLI arguments that would override defaults.
+    # Anything in the config is fair game to be overridden.
     parser = argparse.ArgumentParser()
-
-    # Anything in the config is fair game to be overridden by a command line flag.
-    for key, value in config.items():
+    for key, value in config_defaults.items():
+        # Except the W&B version.
+        if key == "wandb_version":
+            continue
+        desc = value.get("desc")
+        val = value["value"]
         cli_flag = f"--{key}".replace("_", "-")
-        parser.add_argument(cli_flag, dest=key, type=type(value), default=value)
+        parser.add_argument(cli_flag, help=desc, dest=key, type=type(val), default=val)
 
-    args = parser.parse_args()
-    config.update(args, allow_val_change=True)
+    config = parser.parse_args()
+    logger.setLevel(config.log_level)
 
-    if not config.use_wandb:
+    if config.use_wandb:
+        run = wandb.init(config=config, project=WANDB_PROJECT, job_type="train")
+    else:
         os.environ["WANDB_SILENT"] = "true"
         os.environ["WANDB_MODE"] = "dryrun"
-        wandb.log = lambda *args, **kwargs: None
-
-    logger.setLevel(config.log_level)
 
     main(config)
