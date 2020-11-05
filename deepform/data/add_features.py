@@ -12,11 +12,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from fuzzywuzzy import fuzz
 from tqdm import tqdm
 
 from deepform.common import DATA_DIR, TOKEN_DIR, TRAINING_DIR, TRAINING_INDEX
 from deepform.data.create_vocabulary import get_token_id
+from deepform.data.graph_geometry import document_edges
 from deepform.logger import logger
 from deepform.util import (
     date_similarity,
@@ -66,6 +69,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_co
             {
                 "token_file": token_files[slug],
                 "dest_file": out_path / f"{slug}.parquet",
+                "graph_file": out_path / f"{slug}.graph.parquet",
                 "labels": labels,
                 "max_token_count": max_token_count,
             }
@@ -98,7 +102,7 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, labels, max_token_count):
+def process_document_tokens(token_file, dest_file, graph_file, labels, max_token_count):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
     doc = pd.read_parquet(token_file).reset_index(drop=True)
@@ -128,9 +132,21 @@ def process_document_tokens(token_file, dest_file, labels, max_token_count):
 
     # Write to its final location.
     doc.to_parquet(dest_file, index=False)
-
+    adjacency = document_edges(doc)
+    write_adjacency(graph_file, adjacency)
     # Return the summary information about the document.
     return {"slug": slug, "length": len(doc), **labels, **best_matches}
+
+
+def write_adjacency(graph_file, adjacency):
+    arr = pa.array(adjacency)
+    pq.write_table(arr, graph_file)
+
+
+def read_adjacency(graph_file):
+    table = pq.read_table(graph_file)
+    adjacency = table.to_numpy()
+    return adjacency
 
 
 def label_tokens(tokens, labels, max_token_count):

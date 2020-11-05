@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 from deepform.data.add_features import TokenType
-from deepform.data.graph_geometry import document_edges
 from deepform.features import fix_dtypes
 from deepform.util import any_match
 
@@ -65,7 +65,7 @@ class Document:
     positive_windows: np.ndarray
     window_len: int
     label_values: dict[str, str]
-    adjacency_matrix: np.ndarray = field(init=False)
+    adjacency_matrix: np.ndarray  # = field(init=False)
 
     def random_window(self, require_positive=False):
         if require_positive and len(self.positive_windows):
@@ -91,8 +91,8 @@ class Document:
         for i in range(len(self)):
             yield self[i]
 
-    def __post_init__(self):
-        super().__setattr__("adjacency_matrix", document_edges(self.tokens))
+    # def __post_init__(self):
+    #     super().__setattr__("adjacency_matrix", document_edges(self.tokens))
 
     def predict_scores(self, model):
         """Use a model to predict labels for each of the document tokens."""
@@ -149,8 +149,11 @@ class Document:
         df["y0"] *= config.use_geom
         df["log_amount"] *= config.use_amount
 
+        adjacency = pq.read_table("example.parquet").to_numpy()
+
         if config.pad_windows:
             df = pad_df(df, config.window_len - 1)
+            adjacency = pad_adjacency(adjacency, config.window_len - 1)
         fix_dtypes(df)
 
         # Pre-compute which windows have the desired token.
@@ -170,6 +173,7 @@ class Document:
             positive_windows=np.array(positive_windows),
             window_len=config.window_len,
             label_values=label_values,
+            adjacency_matrix=adjacency,
         )
 
 
@@ -177,6 +181,11 @@ def pad_df(df, num_rows):
     """Add `num_rows` NaNs to the start and end of a DataFrame."""
     zeros = pd.DataFrame(index=pd.RangeIndex(num_rows))
     return pd.concat([zeros, df, zeros]).reset_index(drop=True)
+
+
+def pad_adjacency(adjacency, num_rows):
+    """Add blank rows to the square adjacency matrix"""
+    return np.pad(adjacency, ((num_rows, num_rows),), constant_values=0)
 
 
 def actual_value(df, value_col, match_col):

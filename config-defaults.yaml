@@ -2,7 +2,8 @@ wandb_version: 1
 
 len_train:
   dec: number of documents to use (training + validation)
-  value: 15000
+  value: 10
+  # value: 15000
 
 # training dataset settings required for benchmark submissions
 # do not change these if you'd like a pure comparison to the
