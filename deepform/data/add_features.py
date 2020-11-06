@@ -12,8 +12,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 from fuzzywuzzy import fuzz
 from tqdm import tqdm
 
@@ -69,7 +67,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_co
             {
                 "token_file": token_files[slug],
                 "dest_file": out_path / f"{slug}.parquet",
-                "graph_file": out_path / f"{slug}.graph.parquet",
+                "graph_file": out_path / f"{slug}.graph",
                 "labels": labels,
                 "max_token_count": max_token_count,
             }
@@ -105,9 +103,16 @@ def pq_index_and_dir(pq_index, pq_path=None):
 def process_document_tokens(token_file, dest_file, graph_file, labels, max_token_count):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
-    doc = pd.read_parquet(token_file).reset_index(drop=True)
+    tokens = pd.read_parquet(token_file).reset_index(drop=True)
+    doc, adjacency, best_matches = compute_features(tokens, labels, max_token_count)
+    doc.to_parquet(dest_file, index=False)
+    write_adjacency(graph_file, adjacency)
+    # Return the summary information about the document.
+    return {"slug": slug, "length": len(doc), **labels, **best_matches}
 
-    doc = label_tokens(doc, labels, max_token_count)
+
+def compute_features(tokens, labels, max_token_count):
+    doc = label_tokens(tokens, labels, max_token_count)
 
     # Strip whitespace off all tokens.
     doc["token"] = doc.token.str.strip()
@@ -130,23 +135,16 @@ def process_document_tokens(token_file, dest_file, graph_file, labels, max_token
         matches = token_value * np.isclose(doc[feature], max_score)
         doc["label"] = np.maximum(doc["label"], matches)
 
-    # Write to its final location.
-    doc.to_parquet(dest_file, index=False)
     adjacency = document_edges(doc)
-    write_adjacency(graph_file, adjacency)
-    # Return the summary information about the document.
-    return {"slug": slug, "length": len(doc), **labels, **best_matches}
+    return doc, adjacency, best_matches
 
 
 def write_adjacency(graph_file, adjacency):
-    arr = pa.array(adjacency)
-    pq.write_table(arr, graph_file)
+    np.save(f"{graph_file}.npy", adjacency)
 
 
 def read_adjacency(graph_file):
-    table = pq.read_table(graph_file)
-    adjacency = table.to_numpy()
-    return adjacency
+    return np.load(f"{graph_file}.npy")
 
 
 def label_tokens(tokens, labels, max_token_count):
