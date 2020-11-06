@@ -3,7 +3,6 @@ import numpy.ma as ma
 import scipy.sparse as sparse
 
 
-# TODO: mask on tokens being on same page
 def document_edges(tokens, relative_tolerance=0.01):
     """"""
 

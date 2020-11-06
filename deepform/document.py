@@ -4,9 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 
-from deepform.data.add_features import TokenType
+from deepform.data.add_features import TokenType, read_adjacency
 from deepform.features import fix_dtypes
 from deepform.util import any_match
 
@@ -137,7 +136,7 @@ class Document:
         return "\n".join([title, predicted, df.to_string()])
 
     @staticmethod
-    def from_parquet(slug, label_values, pq_path, config):
+    def from_parquet(slug, label_values, pq_path, graph_path, config):
         """Load precomputed features from a parquet file and apply a config."""
         df = pd.read_parquet(pq_path)
 
@@ -149,7 +148,10 @@ class Document:
         df["y0"] *= config.use_geom
         df["log_amount"] *= config.use_amount
 
-        adjacency = pq.read_table("example.parquet").to_numpy()
+        sparse_adjacency = read_adjacency(graph_path)
+        adjacency = sparse_adjacency.todense(
+            out=np.empty(sparse_adjacency.shape, dtype=np.bool_)
+        )
 
         if config.pad_windows:
             df = pad_df(df, config.window_len - 1)
@@ -179,13 +181,19 @@ class Document:
 
 def pad_df(df, num_rows):
     """Add `num_rows` NaNs to the start and end of a DataFrame."""
-    zeros = pd.DataFrame(index=pd.RangeIndex(num_rows))
-    return pd.concat([zeros, df, zeros]).reset_index(drop=True)
+    if num_rows:
+        zeros = pd.DataFrame(index=pd.RangeIndex(num_rows))
+        return pd.concat([zeros, df, zeros]).reset_index(drop=True)
+    else:
+        return df
 
 
 def pad_adjacency(adjacency, num_rows):
     """Add blank rows to the square adjacency matrix"""
-    return np.pad(adjacency, ((num_rows, num_rows),), constant_values=0)
+    if num_rows:
+        return np.pad(adjacency, ((num_rows, num_rows),), constant_values=0)
+    else:
+        return adjacency
 
 
 def actual_value(df, value_col, match_col):

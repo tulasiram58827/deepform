@@ -79,6 +79,7 @@ def caching_doc_getter(index_file, config):
 
     def slug_to_doc(slug, labels):
         pq_path = pq_root / f"{slug}.parquet"
+        graph_path = pq_root / f"{slug}.graph"
         if config.use_data_cache:
             cache_path = cache_root / f"{slug}.joblib"
             try:
@@ -87,7 +88,7 @@ def caching_doc_getter(index_file, config):
             except FileNotFoundError:
                 logger.debug(f"Cache file {cache_path} not found")
         try:
-            doc = Document.from_parquet(slug, labels, pq_path, config)
+            doc = Document.from_parquet(slug, labels, pq_path, graph_path, config)
         except AssertionError:
             logger.warning(f"No correct answers for {slug}, skipping")
             return None
