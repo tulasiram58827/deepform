@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sparse
 from fuzzywuzzy import fuzz
 from tqdm import tqdm
 
@@ -140,11 +141,11 @@ def compute_features(tokens, labels, max_token_count):
 
 
 def write_adjacency(graph_file, adjacency):
-    np.save(f"{graph_file}.npy", adjacency)
+    sparse.save_npz(f"{graph_file}.npz", adjacency)
 
 
 def read_adjacency(graph_file):
-    return np.load(f"{graph_file}.npy")
+    return sparse.load_npz(f"{graph_file}.npz")
 
 
 def label_tokens(tokens, labels, max_token_count):

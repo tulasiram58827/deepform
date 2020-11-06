@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.ma as ma
+import scipy.sparse as sparse
 
 
 # TODO: mask on tokens being on same page
@@ -36,14 +37,15 @@ def document_edges(tokens, relative_tolerance=0.01):
     right_max = np.argmax(test_right, axis=0)
     bottom_max = np.argmax(test_bottom, axis=0)
 
-    adjacency = np.eye(len(tokens))
+    # adjacency = np.eye(len(tokens))
+    adjacency = sparse.eye(len(tokens), dtype=np.bool_, format="lil")
 
     for i in range(len(tokens)):
         if dX_h_aligned[i, right_max[i]]:
-            adjacency[i, right_max[i]] = 1
-            adjacency[right_max[i], i] = 1
+            adjacency[i, right_max[i]] = True
+            adjacency[right_max[i], i] = True
         if dY_v_aligned[i, bottom_max[i]]:
-            adjacency[i, bottom_max[i]] = 1
-            adjacency[bottom_max[i], i] = 1
+            adjacency[i, bottom_max[i]] = True
+            adjacency[bottom_max[i], i] = True
 
-    return adjacency
+    return adjacency.tocoo()
