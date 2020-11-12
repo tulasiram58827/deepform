@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sparse
 
 from deepform.data.add_features import TokenType, read_adjacency
 from deepform.features import fix_dtypes
@@ -64,7 +65,7 @@ class Document:
     positive_windows: np.ndarray
     window_len: int
     label_values: dict[str, str]
-    adjacency_matrix: np.ndarray  # = field(init=False)
+    adjacency_matrix: sparse.coo_matrix
 
     def random_window(self, require_positive=False):
         if require_positive and len(self.positive_windows):

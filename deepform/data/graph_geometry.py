@@ -5,6 +5,7 @@ import scipy.sparse as sparse
 
 def document_edges(tokens, relative_tolerance=0.01):
     """"""
+    N = len(tokens)
 
     # For now we compute alignment of text tokens based on their lower left corner.
     dX = np.subtract.outer(tokens["x0"].to_numpy(), tokens["x0"].to_numpy())
@@ -36,8 +37,7 @@ def document_edges(tokens, relative_tolerance=0.01):
     right_max = np.argmax(test_right, axis=0)
     bottom_max = np.argmax(test_bottom, axis=0)
 
-    # adjacency = np.eye(len(tokens))
-    adjacency = sparse.eye(len(tokens), dtype=np.bool_, format="lil")
+    adjacency = sparse.lil_matrix((N, N), dtype=np.bool_)
 
     for i in range(len(tokens)):
         if dX_h_aligned[i, right_max[i]]:

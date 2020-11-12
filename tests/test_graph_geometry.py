@@ -29,28 +29,28 @@ tokens = pd.DataFrame.from_records([A, B, C, D, E, F, G, H, I, W, X, Y, Z])
 
 # Manually construct the sparse matrix of edges for the above example.
 edges = np.zeros((13, 13))
-edges[0, 1] = 1  # A B
-edges[1, 2] = 1  # B C
-edges[3, 4] = 1  # D E
-edges[4, 5] = 1  # E F
-edges[6, 7] = 1  # G H
-edges[7, 8] = 1  # H I
-edges[0, 3] = 1  # A D
-edges[3, 6] = 1  # D G
-edges[1, 4] = 1  # B E
-edges[4, 7] = 1  # E H
-edges[2, 5] = 1  # C F
-edges[5, 8] = 1  # F I
-edges[9, 10] = 1  # W X
-edges[11, 12] = 1  # Y Z
-edges[9, 11] = 1  # W Y
-edges[10, 12] = 1  # X Z
+edges[0, 1] = True  # A B
+edges[1, 2] = True  # B C
+edges[3, 4] = True  # D E
+edges[4, 5] = True  # E F
+edges[6, 7] = True  # G H
+edges[7, 8] = True  # H I
+edges[0, 3] = True  # A D
+edges[3, 6] = True  # D G
+edges[1, 4] = True  # B E
+edges[4, 7] = True  # E H
+edges[2, 5] = True  # C F
+edges[5, 8] = True  # F I
+edges[9, 10] = True  # W X
+edges[11, 12] = True  # Y Z
+edges[9, 11] = True  # W Y
+edges[10, 12] = True  # X Z
 
 # Add in the symmetric relationships
 edges = edges + edges.T
 
-adjacency = document_edges(tokens)
-expected = edges + np.eye(13)
+adjacency = document_edges(tokens).todense()
+expected = edges
 
 
 def test_9x9_adjacency():
@@ -77,6 +77,6 @@ def test_different_pages():
     B_pg_2["page"] = 1
     tokens_pages = pd.DataFrame.from_records([A, B_pg_2, C])
 
-    adjacency = document_edges(tokens_pages)
-    assert adjacency[0, 1] == 0
-    assert adjacency[0, 2] == 1
+    adjacency = document_edges(tokens_pages).todense()
+    assert not adjacency[0, 1]
+    assert adjacency[0, 2]
