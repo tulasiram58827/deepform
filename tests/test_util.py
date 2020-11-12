@@ -3,6 +3,9 @@ from decimal import Decimal
 from math import isclose
 
 import hypothesis.strategies as st
+import scipy.sparse as sparse
+from hypothesis import example, given
+
 from deepform.util import (
     BoundingBox,
     docrow_to_bbox,
@@ -11,8 +14,8 @@ from deepform.util import (
     log_dollar_amount,
     normalize_date,
     normalize_dollars,
+    pad_sparse_matrix,
 )
-from hypothesis import example, given
 
 
 def test_is_dollar_amount():
@@ -116,3 +119,11 @@ def test_docrow_to_bbox(x0, y0, x1, y1, mh):
     # Floating point arithmetic, yo.
     assert bbox1.y1 - bbox1.y0 >= 10 or isclose(bbox1.y1 - bbox1.y0, 10)
     assert bbox2.y1 - bbox2.y0 >= mh or isclose(bbox2.y1 - bbox2.y0, mh)
+
+
+def test_sparse_padding():
+    m = sparse.identity(3)
+    padded = pad_sparse_matrix(m, 1, 1).todense()
+    assert padded.shape == (5, 5)
+    assert padded[0, 0] == 0
+    assert padded[1, 1] == 1

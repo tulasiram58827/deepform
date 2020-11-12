@@ -8,7 +8,7 @@ import scipy.sparse as sparse
 
 from deepform.data.add_features import TokenType, read_adjacency
 from deepform.features import fix_dtypes
-from deepform.util import any_match
+from deepform.util import any_match, pad_sparse_matrix
 
 FEATURE_COLS = [
     "tok_id",
@@ -149,14 +149,12 @@ class Document:
         df["y0"] *= config.use_geom
         df["log_amount"] *= config.use_amount
 
-        sparse_adjacency = read_adjacency(graph_path)
-        adjacency = sparse_adjacency.todense(
-            out=np.empty(sparse_adjacency.shape, dtype=np.bool_)
-        )
+        adjacency = read_adjacency(graph_path) if config.use_adjacency_matrix else None
 
         if config.pad_windows:
             df = pad_df(df, config.window_len - 1)
-            adjacency = pad_adjacency(adjacency, config.window_len - 1)
+            if adjacency is not None:
+                adjacency = pad_adjacency(adjacency, config.window_len - 1)
         fix_dtypes(df)
 
         # Pre-compute which windows have the desired token.
@@ -192,7 +190,7 @@ def pad_df(df, num_rows):
 def pad_adjacency(adjacency, num_rows):
     """Add blank rows to the square adjacency matrix"""
     if num_rows:
-        return np.pad(adjacency, ((num_rows, num_rows),), constant_values=0)
+        return pad_sparse_matrix(adjacency, num_rows, num_rows)
     else:
         return adjacency
 
