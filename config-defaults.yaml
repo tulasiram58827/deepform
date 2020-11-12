@@ -45,6 +45,11 @@ vocab_embed_size:
   desc: number of outputs in the vocab embedding
   value: 16
 
+# graph feature generation and utilization
+use_adjacency_matrix:
+  desc: whether to generate adjacency matrices and load them in documents
+  value: 0
+
 target_thresh:
   desc: throw away token matches to PP crowdsourced data that aren't at least this good
   value: 0.8

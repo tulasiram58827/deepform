@@ -48,7 +48,14 @@ LABEL_COLS = {
 }
 
 
-def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_count):
+def extend_and_write_docs(
+    source_dir,
+    manifest,
+    pq_index,
+    out_path,
+    max_token_count,
+    use_adjacency_matrix=False,
+):
     """Split data into individual documents, add features, and write to parquet."""
 
     token_files = {p.stem: p for p in source_dir.glob("*.parquet")}
@@ -71,6 +78,7 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_co
                 "graph_file": out_path / f"{slug}.graph",
                 "labels": labels,
                 "max_token_count": max_token_count,
+                "use_adjacency_matrix": use_adjacency_matrix,
             }
         )
 
@@ -101,18 +109,28 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, graph_file, labels, max_token_count):
+def process_document_tokens(
+    token_file,
+    dest_file,
+    graph_file,
+    labels,
+    max_token_count,
+    use_adjacency_matrix=False,
+):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
     tokens = pd.read_parquet(token_file).reset_index(drop=True)
-    doc, adjacency, best_matches = compute_features(tokens, labels, max_token_count)
+    doc, adjacency, best_matches = compute_features(
+        tokens, labels, max_token_count, use_adjacency_matrix=use_adjacency_matrix
+    )
     doc.to_parquet(dest_file, index=False)
-    write_adjacency(graph_file, adjacency)
+    if adjacency is not None:
+        write_adjacency(graph_file, adjacency)
     # Return the summary information about the document.
     return {"slug": slug, "length": len(doc), **labels, **best_matches}
 
 
-def compute_features(tokens, labels, max_token_count):
+def compute_features(tokens, labels, max_token_count, use_adjacency_matrix=False):
     doc = label_tokens(tokens, labels, max_token_count)
 
     # Strip whitespace off all tokens.
@@ -136,7 +154,7 @@ def compute_features(tokens, labels, max_token_count):
         matches = token_value * np.isclose(doc[feature], max_score)
         doc["label"] = np.maximum(doc["label"], matches)
 
-    adjacency = document_edges(doc)
+    adjacency = document_edges(doc) if use_adjacency_matrix else None
     return doc, adjacency, best_matches
 
 
@@ -226,6 +244,11 @@ if __name__ == "__main__":
         default=5,
         help="maximum number of contiguous tokens to match against each label",
     )
+    parser.add_argument(
+        "--compute-graph", dest="use_adjacency_matrix", action="store_true"
+    )
+    parser.set_defaults(use_adjacency_matrix=False)
+
     parser.add_argument("--log-level", dest="log_level", default="INFO")
     args = parser.parse_args()
     logger.setLevel(args.log_level.upper())
@@ -236,4 +259,11 @@ if __name__ == "__main__":
     indir, index, outdir = Path(args.indir), Path(args.indexfile), Path(args.outdir)
     index.parent.mkdir(parents=True, exist_ok=True)
     outdir.mkdir(parents=True, exist_ok=True)
-    extend_and_write_docs(indir, manifest, index, outdir, args.max_token_count)
+    extend_and_write_docs(
+        indir,
+        manifest,
+        index,
+        outdir,
+        args.max_token_count,
+        use_adjacency_matrix=args.use_adjacency_matrix,
+    )
