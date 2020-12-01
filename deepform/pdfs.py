@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 
 import boto3
 import numpy as np
@@ -111,7 +112,50 @@ def log_wandb_pdfs(doc, doc_log, all_scores):
     wandb.log({f"pdf/{fname.name}:{pagenum}": wandb.Image(im.annotated, boxes=boxes)})
 
 
-def log_pdf(doc, score, scores, predict_text, answer_text):
+def render_tokenized_pdf(doc):
+
+    fname = get_pdf_path(doc.slug)
+    try:
+        pdf = pdfplumber.open(fname)
+    except Exception:
+        # If the file's not there, that's fine -- we use available PDFs to
+        # define what to see
+        print(f"Cannot open pdf {fname}")
+        return
+
+    page_images = [
+        {"image": page.to_image(resolution=300), "rects": [], "lines": []}
+        for page in pdf.pages
+    ]
+
+    for token in doc.tokens.itertuples():
+        page_num = int(token.page)
+        if page_num < len(page_images):
+            page_images[page_num]["rects"].append(docrow_to_bbox(token))
+
+    for indices in np.argwhere(doc.adjacency_matrix):
+        first_index, second_index = indices
+        if first_index != second_index:
+            first_token = doc.tokens.iloc[first_index]
+            second_token = doc.tokens.iloc[second_index]
+            page = int(first_token.page)
+            line = (
+                (Decimal(float(first_token.x0)), Decimal(float(first_token.y1))),
+                (Decimal(float(second_token.x0)), Decimal(float(second_token.y1))),
+            )
+            page_images[page_num]["lines"].append(line)
+
+    for page in page_images:
+        image, rects, lines = page["image"], page["rects"], page["lines"]
+        image.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
+        print(f"first lines = {lines[:5]}")
+        image.draw_lines(lines, stroke="green", stroke_width=3)
+
+    return [page["image"] for page in page_images]
+
+
+def render_annotated_pdf(doc, score, scores, predict_text, answer_text):
+
     fname = get_pdf_path(doc.slug)
     try:
         pdf = pdfplumber.open(fname)
@@ -161,8 +205,7 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
         ]
         rects = [docrow_to_bbox(t) for t in target_toks]
         im.draw_rects(rects, stroke="blue", stroke_width=3, fill=None)
-
-        page_images.append(wandb.Image(im.annotated, caption="page " + str(pagenum)))
+        page_images.append({"caption": f"page {pagenum}", "image": im.annotated})
 
     # get best matching score of any token in the training data
     match = doc.tokens[SINGLE_CLASS_PREDICTION].max()
@@ -170,4 +213,18 @@ def log_pdf(doc, score, scores, predict_text, answer_text):
         f"{doc.slug} guessed:{predict_text} answer:{answer_text} match:{match:.2f}"
     )
     verdict = dollar_match(predict_text, answer_text)
+
+    if dollar_match(predict_text, answer_text):
+        caption = "CORRECT " + caption
+    else:
+        caption = "INCORRECT " + caption
     return verdict, caption, page_images
+
+
+def log_pdf(doc, score, scores, predict_text, answer_text):
+    caption, page_images = render_annotated_pdf(doc, score, predict_text, answer_text)
+    page_images = [
+        wandb.Image(page_image["image"], page_image["caption"])
+        for page_image in page_images
+    ]
+    wandb.log({caption: page_images})

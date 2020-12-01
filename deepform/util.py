@@ -6,6 +6,7 @@ from collections import namedtuple
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+import scipy.sparse as sparse
 from fuzzywuzzy import fuzz
 
 from deepform.logger import logger
@@ -206,3 +207,13 @@ def git_short_hash():
         return out.strip().decode("ascii")
     except (OSError, subprocess.CalledProcessError):
         return "UnknownGitRevsion"
+
+
+def pad_sparse_matrix(m, pad_rows=0, pad_columns=0):
+    (rows, _) = m.get_shape()
+    column_padding = sparse.coo_matrix((rows, pad_columns))
+    padded_columns = sparse.hstack([column_padding, m, column_padding])
+    (_, columns) = padded_columns.get_shape()
+    row_padding = sparse.coo_matrix((pad_rows, columns))
+    padded_rows = sparse.vstack([row_padding, padded_columns, row_padding])
+    return padded_rows.tocoo()

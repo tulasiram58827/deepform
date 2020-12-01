@@ -12,11 +12,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sparse
 from fuzzywuzzy import fuzz
 from tqdm import tqdm
 
 from deepform.common import DATA_DIR, TOKEN_DIR, TRAINING_DIR, TRAINING_INDEX
 from deepform.data.create_vocabulary import get_token_id
+from deepform.data.graph_geometry import document_edges
 from deepform.logger import logger
 from deepform.util import (
     date_similarity,
@@ -46,7 +48,14 @@ LABEL_COLS = {
 }
 
 
-def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_count):
+def extend_and_write_docs(
+    source_dir,
+    manifest,
+    pq_index,
+    out_path,
+    max_token_count,
+    use_adjacency_matrix=False,
+):
     """Split data into individual documents, add features, and write to parquet."""
 
     token_files = {p.stem: p for p in source_dir.glob("*.parquet")}
@@ -66,8 +75,10 @@ def extend_and_write_docs(source_dir, manifest, pq_index, out_path, max_token_co
             {
                 "token_file": token_files[slug],
                 "dest_file": out_path / f"{slug}.parquet",
+                "graph_file": out_path / f"{slug}.graph",
                 "labels": labels,
                 "max_token_count": max_token_count,
+                "use_adjacency_matrix": use_adjacency_matrix,
             }
         )
 
@@ -98,12 +109,29 @@ def pq_index_and_dir(pq_index, pq_path=None):
     return pq_index, pq_path
 
 
-def process_document_tokens(token_file, dest_file, labels, max_token_count):
+def process_document_tokens(
+    token_file,
+    dest_file,
+    graph_file,
+    labels,
+    max_token_count,
+    use_adjacency_matrix=False,
+):
     """Filter out short tokens, add computed features, and return index info."""
     slug = token_file.stem
-    doc = pd.read_parquet(token_file).reset_index(drop=True)
+    tokens = pd.read_parquet(token_file).reset_index(drop=True)
+    doc, adjacency, best_matches = compute_features(
+        tokens, labels, max_token_count, use_adjacency_matrix=use_adjacency_matrix
+    )
+    doc.to_parquet(dest_file, index=False)
+    if adjacency is not None:
+        write_adjacency(graph_file, adjacency)
+    # Return the summary information about the document.
+    return {"slug": slug, "length": len(doc), **labels, **best_matches}
 
-    doc = label_tokens(doc, labels, max_token_count)
+
+def compute_features(tokens, labels, max_token_count, use_adjacency_matrix=False):
+    doc = label_tokens(tokens, labels, max_token_count)
 
     # Strip whitespace off all tokens.
     doc["token"] = doc.token.str.strip()
@@ -126,11 +154,16 @@ def process_document_tokens(token_file, dest_file, labels, max_token_count):
         matches = token_value * np.isclose(doc[feature], max_score)
         doc["label"] = np.maximum(doc["label"], matches)
 
-    # Write to its final location.
-    doc.to_parquet(dest_file, index=False)
+    adjacency = document_edges(doc) if use_adjacency_matrix else None
+    return doc, adjacency, best_matches
 
-    # Return the summary information about the document.
-    return {"slug": slug, "length": len(doc), **labels, **best_matches}
+
+def write_adjacency(graph_file, adjacency):
+    sparse.save_npz(f"{graph_file}.npz", adjacency)
+
+
+def read_adjacency(graph_file):
+    return sparse.load_npz(f"{graph_file}.npz")
 
 
 def label_tokens(tokens, labels, max_token_count):
@@ -211,6 +244,11 @@ if __name__ == "__main__":
         default=5,
         help="maximum number of contiguous tokens to match against each label",
     )
+    parser.add_argument(
+        "--compute-graph", dest="use_adjacency_matrix", action="store_true"
+    )
+    parser.set_defaults(use_adjacency_matrix=False)
+
     parser.add_argument("--log-level", dest="log_level", default="INFO")
     args = parser.parse_args()
     logger.setLevel(args.log_level.upper())
@@ -221,4 +259,11 @@ if __name__ == "__main__":
     indir, index, outdir = Path(args.indir), Path(args.indexfile), Path(args.outdir)
     index.parent.mkdir(parents=True, exist_ok=True)
     outdir.mkdir(parents=True, exist_ok=True)
-    extend_and_write_docs(indir, manifest, index, outdir, args.max_token_count)
+    extend_and_write_docs(
+        indir,
+        manifest,
+        index,
+        outdir,
+        args.max_token_count,
+        use_adjacency_matrix=args.use_adjacency_matrix,
+    )

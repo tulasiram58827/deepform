@@ -4,10 +4,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sparse
 
-from deepform.data.add_features import TokenType
+from deepform.data.add_features import TokenType, read_adjacency
 from deepform.features import fix_dtypes
-from deepform.util import any_match
+from deepform.util import any_match, pad_sparse_matrix
 
 FEATURE_COLS = [
     "tok_id",
@@ -64,6 +65,7 @@ class Document:
     positive_windows: np.ndarray
     window_len: int
     label_values: dict[str, str]
+    adjacency_matrix: sparse.coo_matrix
 
     def random_window(self, require_positive=False):
         if require_positive and len(self.positive_windows):
@@ -132,7 +134,7 @@ class Document:
         return "\n".join([title, predicted, df.to_string()])
 
     @staticmethod
-    def from_parquet(slug, label_values, pq_path, config):
+    def from_parquet(slug, label_values, pq_path, graph_path, config):
         """Load precomputed features from a parquet file and apply a config."""
         df = pd.read_parquet(pq_path)
 
@@ -144,8 +146,12 @@ class Document:
         df["y0"] *= config.use_geom
         df["log_amount"] *= config.use_amount
 
+        adjacency = read_adjacency(graph_path) if config.use_adjacency_matrix else None
+
         if config.pad_windows:
             df = pad_df(df, config.window_len - 1)
+            if adjacency is not None:
+                adjacency = pad_adjacency(adjacency, config.window_len - 1)
         fix_dtypes(df)
 
         # Pre-compute which windows have the desired token.
@@ -165,13 +171,25 @@ class Document:
             positive_windows=np.array(positive_windows),
             window_len=config.window_len,
             label_values=label_values,
+            adjacency_matrix=adjacency,
         )
 
 
 def pad_df(df, num_rows):
     """Add `num_rows` NaNs to the start and end of a DataFrame."""
-    zeros = pd.DataFrame(index=pd.RangeIndex(num_rows))
-    return pd.concat([zeros, df, zeros]).reset_index(drop=True)
+    if num_rows:
+        zeros = pd.DataFrame(index=pd.RangeIndex(num_rows))
+        return pd.concat([zeros, df, zeros]).reset_index(drop=True)
+    else:
+        return df
+
+
+def pad_adjacency(adjacency, num_rows):
+    """Add blank rows to the square adjacency matrix"""
+    if num_rows:
+        return pad_sparse_matrix(adjacency, num_rows, num_rows)
+    else:
+        return adjacency
 
 
 def actual_value(df, value_col, match_col):

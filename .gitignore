@@ -28,6 +28,7 @@ source/cached_features.p
 *.pdf
 *.png
 *.pq
+*.npz
 data/token_frequency.csv
 pdfs/
 
