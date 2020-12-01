@@ -91,9 +91,6 @@ class Document:
         for i in range(len(self)):
             yield self[i]
 
-    # def __post_init__(self):
-    #     super().__setattr__("adjacency_matrix", document_edges(self.tokens))
-
     def predict_scores(self, model):
         """Use a model to predict labels for each of the document tokens."""
         windowed_features = np.stack([window.features for window in self])
